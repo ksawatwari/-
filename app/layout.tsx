@@ -1,5 +1,12 @@
 import type { Metadata, Viewport } from "next";
+import { Anuphan } from "next/font/google";
 import "./globals.css";
+
+const anuphan = Anuphan({
+  subsets: ["latin", "thai"],
+  variable: "--font-anuphan",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Survival Budget",
@@ -18,7 +25,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="th">
-      <body>{children}</body>
+      <body className={anuphan.variable}>{children}</body>
     </html>
   );
 }
