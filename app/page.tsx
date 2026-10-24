@@ -168,6 +168,17 @@ type Data = {
   profile: Profile | null;
   lang: Lang;
   font: string;
+  appKey: string; // รหัสเชื่อมกับ /api/inbox (APP_KEY) — ว่าง = ปิดการเชื่อม SCB
+};
+
+type InboxEvent = {
+  id: string;
+  dir: "in" | "out";
+  amount: number;
+  dateKey: string;
+  time: string;
+  counterparty: string;
+  ref: string;
 };
 
 /* ================================================================
@@ -384,6 +395,38 @@ const D: Record<string, Row> = {
     "Start a new cycle? All expense history will be deleted.",
     "Démarrer un nouveau cycle ? Tout l'historique sera supprimé.",
     "Neuen Zyklus starten? Der gesamte Ausgabenverlauf wird gelöscht.",
+  ],
+
+  // SCB auto-link
+  "scb.title": ["เชื่อม SCB อัตโนมัติ", "Auto-link SCB", "Lien automatique SCB", "SCB automatisch verknüpfen"],
+  "scb.desc": [
+    "รับแจ้งเตือนเงินเข้า-ออกจากมือถือ แล้วบันทึกและคำนวณยอดให้เอง",
+    "Record money in/out automatically from your phone's notifications",
+    "Enregistre automatiquement les entrées/sorties d'argent depuis les notifications du téléphone",
+    "Ein- und Ausgänge automatisch aus Handy-Benachrichtigungen erfassen",
+  ],
+  "scb.keyPh": [
+    "รหัสเชื่อมต่อ (APP_KEY)",
+    "Connection key (APP_KEY)",
+    "Clé de connexion (APP_KEY)",
+    "Verbindungsschlüssel (APP_KEY)",
+  ],
+  "scb.save": ["บันทึกและทดสอบ", "Save & test", "Enregistrer et tester", "Speichern & testen"],
+  "scb.testing": ["กำลังทดสอบ…", "Testing…", "Test en cours…", "Teste…"],
+  "scb.ok": ["เชื่อมต่อสำเร็จ", "Connected", "Connecté", "Verbunden"],
+  "scb.bad": [
+    "เชื่อมต่อไม่ได้ ตรวจรหัสหรือการตั้งค่าเซิร์ฟเวอร์",
+    "Can't connect. Check the key or server setup.",
+    "Connexion impossible. Vérifiez la clé ou la configuration du serveur.",
+    "Verbindung fehlgeschlagen. Prüfe Schlüssel oder Server-Einrichtung.",
+  ],
+  "scb.in": ["เงินเข้า SCB", "SCB deposit", "Entrée SCB", "SCB-Eingang"],
+  "scb.out": ["เงินออก SCB", "SCB payment", "Sortie SCB", "SCB-Ausgang"],
+  "scb.synced": [
+    "เพิ่มจาก SCB {n} รายการ",
+    "Added {n} from SCB",
+    "{n} ajoutée(s) depuis SCB",
+    "{n} von SCB hinzugefügt",
   ],
 
   // slip scanner
@@ -695,6 +738,7 @@ const defaultData = (): Data => ({
   profile: null,
   lang: "th",
   font: "anuphan",
+  appKey: "",
 });
 
 /* ================================================================
@@ -744,6 +788,95 @@ export default function Page() {
     document.documentElement.lang = lang;
   }, [data.font, lang]);
 
+  // ดึงรายการเงินเข้า/ออกจาก SCB ที่มือถือส่งเข้า Firestore มาบันทึกอัตโนมัติ
+  const txsRef = useRef<Tx[]>([]);
+  txsRef.current = data.txs;
+  const syncingRef = useRef(false);
+  const [toast, setToast] = useState("");
+
+  useEffect(() => {
+    const key = data.appKey;
+    if (!loaded || !key) return;
+    let alive = true;
+
+    const run = async () => {
+      if (syncingRef.current) return;
+      syncingRef.current = true;
+      try {
+        const r = await fetch("/api/inbox", { headers: { "x-key": key }, cache: "no-store" });
+        if (!r.ok) return;
+        const j = (await r.json()) as { events?: InboxEvent[] };
+        const events = j.events ?? [];
+        if (events.length === 0) return;
+
+        const known = [...txsRef.current];
+        const added: Tx[] = [];
+        for (const ev of events) {
+          const when = fromKey(ev.dateKey);
+          const [hh, mi] = ev.time.split(":").map(Number);
+          when.setHours(hh || 0, mi || 0, 0, 0);
+          const ts = when.getTime();
+          const income = ev.dir === "in";
+          // กันซ้ำกับสลิปที่สแกน/รายการที่เพิ่มไปแล้ว (ยอดเท่ากัน ทิศทางเดียวกัน เวลาห่างไม่เกิน 3 นาที)
+          const dup = known.some(
+            (x) =>
+              !!x.income === income &&
+              ((x.ref !== undefined && x.ref === ev.ref) ||
+                (x.amount === ev.amount && x.dateKey === ev.dateKey && Math.abs(x.ts - ts) <= 180000))
+          );
+          if (dup) continue;
+          const tx: Tx = {
+            id: `scb_${ev.id}`,
+            amount: ev.amount,
+            category: "other",
+            note: ev.counterparty || tr(lang, income ? "scb.in" : "scb.out"),
+            dateKey: ev.dateKey,
+            ts,
+            icon: income ? "Banknote" : "Receipt",
+            income: income || undefined,
+            ref: ev.ref,
+          };
+          added.push(tx);
+          known.push(tx);
+        }
+
+        if (added.length > 0) {
+          setData((d) => ({
+            ...d,
+            txs: [...added.filter((n) => !d.txs.some((x) => x.id === n.id)), ...d.txs].sort(
+              (a, b) => b.ts - a.ts
+            ),
+          }));
+        }
+        await fetch("/api/inbox", {
+          method: "POST",
+          headers: { "x-key": key, "content-type": "application/json" },
+          body: JSON.stringify({ ids: events.map((e) => e.id) }),
+        });
+        if (added.length > 0 && alive) {
+          setToast(tr(lang, "scb.synced", { n: added.length }));
+          setTimeout(() => setToast(""), 3500);
+        }
+      } catch {
+        /* ออฟไลน์/เซิร์ฟเวอร์ยังไม่พร้อม — ลองใหม่รอบหน้า */
+      } finally {
+        syncingRef.current = false;
+      }
+    };
+
+    void run();
+    const timer = setInterval(run, 30000);
+    const onVis = () => {
+      if (document.visibilityState === "visible") void run();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [loaded, data.appKey, lang]);
+
   let content: React.ReactNode;
 
   if (!loaded) {
@@ -780,6 +913,8 @@ export default function Page() {
         font={data.font}
         onLang={(l) => setData((d) => ({ ...d, lang: l }))}
         onFont={(f) => setData((d) => ({ ...d, font: f }))}
+        appKey={data.appKey}
+        onAppKey={(k) => setData((d) => ({ ...d, appKey: k }))}
         onBudget={() => {
           setEditingSettings(false);
           setEditingSetup(true);
@@ -799,7 +934,16 @@ export default function Page() {
     );
   }
 
-  return <LangCtx.Provider value={lang}>{content}</LangCtx.Provider>;
+  return (
+    <LangCtx.Provider value={lang}>
+      {content}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 z-[60] -translate-x-1/2 rounded-full bg-slate-800 px-5 py-3 text-sm font-medium text-white shadow-lg">
+          {toast}
+        </div>
+      )}
+    </LangCtx.Provider>
+  );
 }
 
 /* ================================================================
@@ -1238,19 +1382,40 @@ function OptionRow({
 function SettingsScreen({
   lang,
   font,
+  appKey,
   onLang,
   onFont,
+  onAppKey,
   onBudget,
   onBack,
 }: {
   lang: Lang;
   font: string;
+  appKey: string;
   onLang: (l: Lang) => void;
   onFont: (f: string) => void;
+  onAppKey: (k: string) => void;
   onBudget: () => void;
   onBack: () => void;
 }) {
   const t = useT();
+  const [keyDraft, setKeyDraft] = useState(appKey);
+  const [st, setSt] = useState<"idle" | "testing" | "ok" | "bad">("idle");
+  const saveKey = async () => {
+    const k = keyDraft.trim();
+    onAppKey(k);
+    if (!k) {
+      setSt("idle");
+      return;
+    }
+    setSt("testing");
+    try {
+      const r = await fetch("/api/inbox", { headers: { "x-key": k }, cache: "no-store" });
+      setSt(r.ok ? "ok" : "bad");
+    } catch {
+      setSt("bad");
+    }
+  };
   return (
     <main className="min-h-screen bg-slate-50 pb-12">
       <div className="mx-auto max-w-md px-4 pt-6">
@@ -1329,6 +1494,44 @@ function SettingsScreen({
               </OptionRow>
             ))}
           </div>
+        </section>
+
+        {/* เชื่อม SCB อัตโนมัติ */}
+        <section className="mt-4 rounded-3xl bg-white p-4 shadow-sm">
+          <div className="mb-3 flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
+              <Smartphone size={20} />
+            </span>
+            <div>
+              <h2 className="font-semibold text-slate-800">{t("scb.title")}</h2>
+              <p className="text-xs text-slate-500">{t("scb.desc")}</p>
+            </div>
+          </div>
+          <input
+            value={keyDraft}
+            onChange={(e) => {
+              setKeyDraft(e.target.value);
+              setSt("idle");
+            }}
+            placeholder={t("scb.keyPh")}
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            className="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm outline-none focus:border-emerald-500"
+          />
+          <button
+            onClick={saveKey}
+            className="mt-3 w-full rounded-2xl bg-emerald-500 py-3.5 font-semibold text-white active:bg-emerald-600"
+          >
+            {t("scb.save")}
+          </button>
+          {st === "testing" && <p className="mt-2 text-sm text-slate-500">{t("scb.testing")}</p>}
+          {st === "ok" && (
+            <p className="mt-2 flex items-center gap-1 text-sm font-medium text-emerald-600">
+              <Check size={16} /> {t("scb.ok")}
+            </p>
+          )}
+          {st === "bad" && <p className="mt-2 text-sm text-rose-600">{t("scb.bad")}</p>}
         </section>
       </div>
     </main>
@@ -2300,6 +2503,7 @@ function Dashboard({
       profile: data.profile,
       lang: data.lang,
       font: data.font,
+      appKey: data.appKey,
     });
   };
 
