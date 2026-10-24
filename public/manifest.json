@@ -1,0 +1,6 @@
+export const metadata = {
+  title: "Survival Money",
+  description: "My personal finance app",
+  manifest: "/manifest.json",
+  themeColor: "#000000",
+};
