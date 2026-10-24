@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   Utensils,
   Coffee,
@@ -18,6 +18,10 @@ import {
   AlertTriangle,
   TrendingUp,
   RotateCcw,
+  ChevronLeft,
+  ChevronRight,
+  Type,
+  Languages,
   // อาหาร
   UtensilsCrossed,
   Soup,
@@ -125,7 +129,10 @@ import {
   ImagePlus,
 } from "lucide-react";
 
-/* ---------- Types ---------- */
+/* ================================================================
+   Types
+================================================================ */
+type Lang = "th" | "en" | "fr" | "de";
 type Fixed = { id: string; name: string; amount: number };
 type Tx = {
   id: string;
@@ -156,105 +163,444 @@ type Data = {
   txs: Tx[];
   quick: QuickItem[];
   profile: Profile | null;
+  lang: Lang;
+  font: string;
 };
 
-/* ---------- Constants ---------- */
+/* ================================================================
+   i18n  (th, en, fr, de)
+================================================================ */
+const LANG_IDX: Record<Lang, number> = { th: 0, en: 1, fr: 2, de: 3 };
+const LOCALES: Record<Lang, string> = {
+  th: "th-TH",
+  en: "en-US",
+  fr: "fr-FR",
+  de: "de-DE",
+};
+const LANGS: { id: Lang; flag: string; native: string }[] = [
+  { id: "th", flag: "🇹🇭", native: "ไทย" },
+  { id: "en", flag: "🇬🇧", native: "English" },
+  { id: "fr", flag: "🇫🇷", native: "Français" },
+  { id: "de", flag: "🇩🇪", native: "Deutsch" },
+];
+
+type Row = [string, string, string, string];
+const D: Record<string, Row> = {
+  // common
+  "common.save": ["บันทึก", "Save", "Enregistrer", "Speichern"],
+  "common.cancel": ["ยกเลิก", "Cancel", "Annuler", "Abbrechen"],
+  "common.close": ["ปิด", "Close", "Fermer", "Schließen"],
+  "common.back": ["กลับ", "Back", "Retour", "Zurück"],
+  "common.done": ["เสร็จ", "Done", "Terminé", "Fertig"],
+  "common.edit": ["แก้ไข", "Edit", "Modifier", "Bearbeiten"],
+  "common.delete": ["ลบ", "Delete", "Supprimer", "Löschen"],
+
+  // profile
+  "profile.create": ["สร้างโปรไฟล์ของคุณ", "Create your profile", "Créez votre profil", "Erstelle dein Profil"],
+  "profile.edit": ["แก้ไขโปรไฟล์", "Edit profile", "Modifier le profil", "Profil bearbeiten"],
+  "profile.change": ["เปลี่ยนรูปโปรไฟล์", "Change photo", "Changer la photo", "Foto ändern"],
+  "profile.upload": ["เลือกรูปจากเครื่อง", "Choose from device", "Choisir depuis l'appareil", "Aus Galerie wählen"],
+  "profile.default": ["ใช้รูปเริ่มต้น", "Use default picture", "Utiliser l'image par défaut", "Standardbild verwenden"],
+  "profile.namePh": ["คุณชื่ออะไร?", "What's your name?", "Comment vous appelez-vous ?", "Wie heißt du?"],
+  "profile.start": ["เริ่มเลย", "Let's go", "C'est parti", "Los geht's"],
+  "profile.uploadError": [
+    "เปิดรูปนี้ไม่ได้ ลองเลือกรูปอื่น (JPG/PNG)",
+    "Can't open this image. Try another one (JPG/PNG)",
+    "Impossible d'ouvrir cette image. Essayez-en une autre (JPG/PNG)",
+    "Dieses Bild lässt sich nicht öffnen. Versuche ein anderes (JPG/PNG)",
+  ],
+  "banner.hello": ["สวัสดี, {name}", "Hello, {name}", "Bonjour, {name}", "Hallo, {name}"],
+
+  // setup
+  "setup.titleFirst": ["ตั้งค่าเริ่มต้น", "Initial setup", "Configuration initiale", "Ersteinrichtung"],
+  "setup.titleEdit": ["ตั้งค่างบประมาณ", "Budget settings", "Paramètres du budget", "Budget-Einstellungen"],
+  "setup.budget": [
+    "งบตั้งต้นประจำเดือน (บาท)",
+    "Monthly starting budget (THB)",
+    "Budget mensuel de départ (THB)",
+    "Monatliches Startbudget (THB)",
+  ],
+  "setup.fixed": ["ค่าใช้จ่ายคงที่", "Fixed costs", "Charges fixes", "Fixkosten"],
+  "setup.itemName": ["ชื่อรายการ", "Item name", "Nom", "Bezeichnung"],
+  "setup.addItem": ["เพิ่มรายการ", "Add item", "Ajouter", "Hinzufügen"],
+  "setup.days": [
+    "จำนวนวันที่เหลือ (รวมวันนี้)",
+    "Days left (including today)",
+    "Jours restants (aujourd'hui inclus)",
+    "Verbleibende Tage (inkl. heute)",
+  ],
+  "setup.toEnd": ["ถึงสิ้นเดือน", "Until month end", "Jusqu'à fin du mois", "Bis Monatsende"],
+  "setup.daysHint": [
+    "ระบบคำนวณจากวันที่จริงให้อัตโนมัติ แก้ไขเองได้ถ้ารอบของคุณไม่ตรงสิ้นเดือน",
+    "Calculated automatically from today's date. Adjust it if your cycle doesn't end at month end.",
+    "Calculé automatiquement à partir de la date du jour. Modifiez-le si votre cycle ne se termine pas en fin de mois.",
+    "Wird automatisch aus dem heutigen Datum berechnet. Passe es an, wenn dein Zyklus nicht zum Monatsende endet.",
+  ],
+  "setup.net": [
+    "เงินใช้จ่ายจริง (Net)",
+    "Net spendable money",
+    "Argent réellement disponible",
+    "Verfügbares Geld (netto)",
+  ],
+  "setup.perDay": ["ใช้ได้วันละประมาณ", "About per day", "Environ par jour", "Etwa pro Tag"],
+  "setup.negative": [
+    "ค่าใช้จ่ายคงที่เกินงบตั้งต้น กรุณาตรวจสอบ",
+    "Fixed costs exceed the starting budget. Please check.",
+    "Les charges fixes dépassent le budget de départ. Veuillez vérifier.",
+    "Die Fixkosten übersteigen das Startbudget. Bitte prüfen.",
+  ],
+  "setup.start": ["เริ่มใช้งาน", "Get started", "Commencer", "Loslegen"],
+  "setup.needBudget": [
+    "กรุณาใส่งบตั้งต้น",
+    "Please enter a starting budget",
+    "Veuillez saisir un budget de départ",
+    "Bitte gib ein Startbudget ein",
+  ],
+  "setup.unnamed": ["ค่าใช้จ่าย", "Expense", "Dépense", "Ausgabe"],
+  "fixed.f1": ["ค่าห้อง", "Rent", "Loyer", "Miete"],
+  "fixed.f2": ["ค่าเดินทางฟิกซ์", "Fixed transport", "Transport fixe", "Feste Fahrtkosten"],
+  "fixed.f3": ["ค่าน้ำ/ค่าไฟ", "Water/Electricity", "Eau/Électricité", "Wasser/Strom"],
+  "fixed.f4": ["ค่าเน็ต", "Internet", "Internet", "Internet"],
+
+  // settings
+  "settings.title": ["ตั้งค่า", "Settings", "Paramètres", "Einstellungen"],
+  "settings.budgetDesc": [
+    "งบตั้งต้น ค่าใช้จ่ายคงที่ และจำนวนวัน",
+    "Starting budget, fixed costs and days left",
+    "Budget de départ, charges fixes et jours restants",
+    "Startbudget, Fixkosten und verbleibende Tage",
+  ],
+  "settings.font": ["ฟอนต์", "Font", "Police", "Schriftart"],
+  "settings.fontDesc": [
+    "เลือกฟอนต์ที่ใช้ทั้งระบบ",
+    "Choose the font used across the app",
+    "Choisissez la police de toute l'application",
+    "Wähle die Schriftart für die ganze App",
+  ],
+  "settings.language": ["ภาษา", "Language", "Langue", "Sprache"],
+  "settings.langDesc": [
+    "เปลี่ยนภาษาทั้งระบบ",
+    "Change the language of the whole app",
+    "Changer la langue de toute l'application",
+    "Sprache der gesamten App ändern",
+  ],
+  "settings.active": ["ใช้งานอยู่", "Active", "Actif", "Aktiv"],
+
+  // dashboard
+  "dash.daysLeft": ["เหลืออีก {n} วัน", "{n} days left", "Encore {n} jours", "Noch {n} Tage"],
+  "dash.daysLeft1": ["เหลืออีก {n} วัน", "{n} day left", "Encore {n} jour", "Noch {n} Tag"],
+  "dash.expired": [
+    "รอบที่ตั้งไว้สิ้นสุดแล้ว เปิดตั้งค่า หรือกด “เริ่มรอบใหม่” ด้านล่างเพื่อเริ่มรอบถัดไป",
+    "Your cycle has ended. Open Settings or tap “Start a new cycle” below.",
+    "Votre cycle est terminé. Ouvrez les paramètres ou touchez « Nouveau cycle » ci-dessous.",
+    "Dein Zyklus ist beendet. Öffne die Einstellungen oder tippe unten auf „Neuer Zyklus“.",
+  ],
+  "dash.safe": [
+    "ใช้ได้อีกวันนี้ (Safe-to-Spend)",
+    "Left to spend today (Safe-to-Spend)",
+    "Disponible aujourd'hui (Safe-to-Spend)",
+    "Heute noch verfügbar (Safe-to-Spend)",
+  ],
+  "dash.todayBudget": [
+    "งบวันนี้ ฿{a} · ใช้ไปแล้ว ฿{b}",
+    "Today's budget ฿{a} · spent ฿{b}",
+    "Budget du jour ฿{a} · dépensé ฿{b}",
+    "Heutiges Budget ฿{a} · ausgegeben ฿{b}",
+  ],
+  "dash.tomorrow": [
+    "พรุ่งนี้จะได้วันละ ฿{n}",
+    "Tomorrow: ฿{n} per day",
+    "Demain : ฿{n} par jour",
+    "Morgen: ฿{n} pro Tag",
+  ],
+  "dash.carried": ["(รวมยอดทบแล้ว)", "(incl. carry-over)", "(report inclus)", "(inkl. Übertrag)"],
+  "dash.cut": [
+    "(หักจากส่วนที่ใช้เกินแล้ว)",
+    "(reduced by overspending)",
+    "(réduit par le dépassement)",
+    "(durch Überschreitung gekürzt)",
+  ],
+  "zone.green": ["ปลอดภัย", "Safe", "Sécurité", "Sicher"],
+  "zone.yellow": ["ระวัง", "Careful", "Prudence", "Vorsicht"],
+  "zone.red": ["Survival Mode", "Survival Mode", "Survival Mode", "Survival Mode"],
+  "bar.left": ["เหลือ ฿{n}", "Left ฿{n}", "Reste ฿{n}", "Übrig ฿{n}"],
+  "bar.of": ["จาก ฿{n}", "of ฿{n}", "sur ฿{n}", "von ฿{n}"],
+  "surv.title": ["โหมดกู้วิกฤต", "Survival mode", "Mode survie", "Überlebensmodus"],
+  "surv.line": [
+    "เหลือวันละ ฿{a} ➔ มื้อละ ฿{b}",
+    "฿{a} per day ➔ ฿{b} per meal",
+    "฿{a} par jour ➔ ฿{b} par repas",
+    "฿{a} pro Tag ➔ ฿{b} pro Mahlzeit",
+  ],
+  "surv.today": [
+    "วันนี้ที่เหลือ ฿{a} ≈ มื้อละ ฿{b} (แบ่ง 3 มื้อ)",
+    "Left today ฿{a} ≈ ฿{b} per meal (3 meals)",
+    "Reste aujourd'hui ฿{a} ≈ ฿{b} par repas (3 repas)",
+    "Heute übrig ฿{a} ≈ ฿{b} pro Mahlzeit (3 Mahlzeiten)",
+  ],
+  "surv.over": [
+    "ใช้เกินงบรวมแล้ว ฿{n}",
+    "Over the total budget by ฿{n}",
+    "Dépassement total de ฿{n}",
+    "Gesamtbudget um ฿{n} überschritten",
+  ],
+
+  // quick log
+  "quick.title": [
+    "บันทึกด่วน (แตะครั้งเดียว)",
+    "Quick log (one tap)",
+    "Saisie rapide (un tap)",
+    "Schnell erfassen (ein Tipp)",
+  ],
+  "quick.editTitle": [
+    "แตะปุ่มเพื่อแก้ไข",
+    "Tap a button to edit",
+    "Touchez un bouton pour le modifier",
+    "Tippe auf eine Taste zum Bearbeiten",
+  ],
+  "quick.customize": ["ปรับแต่ง", "Customize", "Personnaliser", "Anpassen"],
+  "quick.add": ["เพิ่มปุ่ม", "Add button", "Ajouter un bouton", "Taste hinzufügen"],
+  "quick.amountPh": ["จำนวนเงิน", "Amount", "Montant", "Betrag"],
+  "quick.notePh": ["โน้ต (ไม่บังคับ)", "Note (optional)", "Note (facultatif)", "Notiz (optional)"],
+  "quick.log": ["บันทึกรายจ่าย", "Log expense", "Enregistrer la dépense", "Ausgabe erfassen"],
+  "quick.q1": ["ค่าข้าว", "Meal", "Repas", "Essen"],
+  "quick.q2": ["กาแฟ", "Coffee", "Café", "Kaffee"],
+  "quick.q3": ["เดินทาง", "Transport", "Transport", "Fahrt"],
+  "quick.q4": ["ข้าว+น้ำ", "Meal + drink", "Repas + boisson", "Essen + Getränk"],
+
+  // recent
+  "recent.title": ["รายการล่าสุด", "Recent transactions", "Dernières opérations", "Letzte Ausgaben"],
+  "recent.empty": ["ยังไม่มีรายการ", "Nothing yet", "Rien pour l'instant", "Noch keine Einträge"],
+  "recent.today": ["วันนี้", "Today", "Aujourd'hui", "Heute"],
+  "edit.title": ["แก้ไขรายการ", "Edit entry", "Modifier l'entrée", "Eintrag bearbeiten"],
+  "edit.save": ["บันทึกการแก้ไข", "Save changes", "Enregistrer", "Änderungen speichern"],
+  "edit.notePh": ["โน้ต", "Note", "Note", "Notiz"],
+  "reset.btn": ["เริ่มรอบใหม่", "Start a new cycle", "Nouveau cycle", "Neuer Zyklus"],
+  "reset.confirm": [
+    "เริ่มรอบใหม่? ประวัติรายจ่ายทั้งหมดจะถูกลบ",
+    "Start a new cycle? All expense history will be deleted.",
+    "Démarrer un nouveau cycle ? Tout l'historique sera supprimé.",
+    "Neuen Zyklus starten? Der gesamte Ausgabenverlauf wird gelöscht.",
+  ],
+
+  // quick editor
+  "qe.new": ["เพิ่มปุ่มบันทึกด่วน", "Add quick button", "Ajouter un bouton rapide", "Schnelltaste hinzufügen"],
+  "qe.edit": ["แก้ไขปุ่มบันทึกด่วน", "Edit quick button", "Modifier le bouton rapide", "Schnelltaste bearbeiten"],
+  "qe.baht": ["บาท", "THB", "THB", "THB"],
+  "qe.category": ["หมวดหมู่รายจ่าย", "Expense category", "Catégorie de dépense", "Ausgabenkategorie"],
+  "qe.pickIcon": [
+    "เลือกโลโก้ (แยกตามหมวด)",
+    "Pick an icon (by category)",
+    "Choisir une icône (par catégorie)",
+    "Symbol wählen (nach Kategorie)",
+  ],
+  "qe.delete": ["ลบปุ่ม", "Delete button", "Supprimer le bouton", "Taste löschen"],
+
+  // categories
+  "cat.food": ["อาหาร", "Food", "Repas", "Essen"],
+  "cat.drink": ["เครื่องดื่ม", "Drinks", "Boissons", "Getränke"],
+  "cat.travel": ["เดินทาง", "Transport", "Transport", "Fahrt"],
+  "cat.goods": ["ของใช้", "Supplies", "Fournitures", "Besorgungen"],
+  "cat.other": ["อื่นๆ", "Other", "Autre", "Sonstiges"],
+  "grp.food": ["อาหาร", "Food", "Alimentation", "Essen"],
+  "grp.drink": ["เครื่องดื่ม", "Drinks", "Boissons", "Getränke"],
+  "grp.travel": ["เดินทาง", "Transport", "Transport", "Verkehr"],
+  "grp.home": ["ของใช้/บ้าน", "Home & goods", "Maison & courses", "Haus & Besorgungen"],
+  "grp.bills": ["บิล/การเงิน", "Bills & money", "Factures & argent", "Rechnungen & Geld"],
+  "grp.life": ["สุขภาพ/ชีวิต", "Health & life", "Santé & vie", "Gesundheit & Leben"],
+  "grp.fun": ["บันเทิง/งาน", "Fun & work", "Loisirs & travail", "Freizeit & Arbeit"],
+};
+
+function tr(lang: Lang, key: string, vars?: Record<string, string | number>): string {
+  const row = D[key];
+  let s = row ? row[LANG_IDX[lang]] : key;
+  if (vars) {
+    for (const k of Object.keys(vars)) s = s.split(`{${k}}`).join(String(vars[k]));
+  }
+  return s;
+}
+
+const LangCtx = createContext<Lang>("th");
+type TFn = (key: string, vars?: Record<string, string | number>) => string;
+function useT(): TFn {
+  const lang = useContext(LangCtx);
+  return (key, vars) => tr(lang, key, vars);
+}
+function useLang(): Lang {
+  return useContext(LangCtx);
+}
+
+/* ================================================================
+   Fonts
+================================================================ */
+const FONTS: { id: string; name: string; cssVar: string }[] = [
+  { id: "anuphan", name: "Anuphan", cssVar: "--font-anuphan" },
+  { id: "prompt", name: "Prompt", cssVar: "--font-prompt" },
+  { id: "kanit", name: "Kanit", cssVar: "--font-kanit" },
+  { id: "sarabun", name: "Sarabun", cssVar: "--font-sarabun" },
+  { id: "mali", name: "Mali", cssVar: "--font-mali" },
+  { id: "mitr", name: "Mitr", cssVar: "--font-mitr" },
+];
+const fontFamilyOf = (id: string) => {
+  const f = FONTS.find((x) => x.id === id) ?? FONTS[0];
+  return `var(${f.cssVar}), system-ui, sans-serif`;
+};
+
+/* ================================================================
+   Constants
+================================================================ */
 const STORAGE_KEY = "survival-budget-v1";
 const DEFAULT_BUDGET = 13623;
 
-const CATEGORIES: { name: string; icon: React.ElementType }[] = [
-  { name: "อาหาร", icon: Utensils },
-  { name: "เครื่องดื่ม", icon: Coffee },
-  { name: "เดินทาง", icon: Bus },
-  { name: "ของใช้", icon: ShoppingBasket },
-  { name: "อื่นๆ", icon: Wallet },
-];
+let LOCALE = "th-TH";
 
+const CATEGORIES: { id: string; th: string; icon: React.ElementType }[] = [
+  { id: "food", th: "อาหาร", icon: Utensils },
+  { id: "drink", th: "เครื่องดื่ม", icon: Coffee },
+  { id: "travel", th: "เดินทาง", icon: Bus },
+  { id: "goods", th: "ของใช้", icon: ShoppingBasket },
+  { id: "other", th: "อื่นๆ", icon: Wallet },
+];
+// รองรับข้อมูลเก่าที่เก็บเป็นชื่อภาษาไทย
+const catOf = (v: string) =>
+  CATEGORIES.find((c) => c.id === v || c.th === v) ?? CATEGORIES[CATEGORIES.length - 1];
+
+const DEFAULT_TH: Record<string, string> = {
+  q1: "ค่าข้าว",
+  q2: "กาแฟ",
+  q3: "เดินทาง",
+  q4: "ข้าว+น้ำ",
+};
 const DEFAULT_QUICK: QuickItem[] = [
-  { id: "q1", label: "ค่าข้าว", amount: 50, category: "อาหาร", icon: "Utensils" },
-  { id: "q2", label: "กาแฟ", amount: 40, category: "เครื่องดื่ม", icon: "Coffee" },
-  { id: "q3", label: "เดินทาง", amount: 30, category: "เดินทาง", icon: "Bus" },
-  { id: "q4", label: "ข้าว+น้ำ", amount: 70, category: "อาหาร", icon: "Utensils" },
+  { id: "q1", label: "ค่าข้าว", amount: 50, category: "food", icon: "Utensils" },
+  { id: "q2", label: "กาแฟ", amount: 40, category: "drink", icon: "Coffee" },
+  { id: "q3", label: "เดินทาง", amount: 30, category: "travel", icon: "Bus" },
+  { id: "q4", label: "ข้าว+น้ำ", amount: 70, category: "food", icon: "Utensils" },
 ];
+const quickLabel = (q: QuickItem, t: TFn) =>
+  DEFAULT_TH[q.id] === q.label ? t(`quick.${q.id}`) : q.label;
+const noteLabel = (note: string, t: TFn) => {
+  const k = Object.keys(DEFAULT_TH).find((x) => DEFAULT_TH[x] === note);
+  return k ? t(`quick.${k}`) : note;
+};
 
-// ไอคอนแบ่งตามหมวด + ชื่อแนะนำ [ชื่อ, ไอคอน]
+const DEFAULT_FIXED: Fixed[] = [
+  { id: "f1", name: "ค่าห้อง", amount: 0 },
+  { id: "f2", name: "ค่าเดินทางฟิกซ์", amount: 0 },
+  { id: "f3", name: "ค่าน้ำ/ค่าไฟ", amount: 0 },
+  { id: "f4", name: "ค่าเน็ต", amount: 0 },
+];
+const FIXED_TH: Record<string, string> = {
+  f1: "ค่าห้อง",
+  f2: "ค่าเดินทางฟิกซ์",
+  f3: "ค่าน้ำ/ค่าไฟ",
+  f4: "ค่าเน็ต",
+};
+
+// ไอคอนแบ่งตามหมวด + ชื่อแนะนำ [th, en, fr, de, icon]
 const ICON_GROUPS: {
-  name: string;
+  id: string;
   icons: Record<string, React.ElementType>;
-  presets: [string, string][];
+  presets: [string, string, string, string, string][];
 }[] = [
   {
-    name: "อาหาร",
+    id: "food",
     icons: {
       Utensils, UtensilsCrossed, Soup, Pizza, Sandwich, Salad, Egg, Beef, Fish,
       Drumstick, Cookie, Croissant, Cake, Apple, Banana, Cherry, Popcorn, Candy, Wheat,
     },
     presets: [
-      ["ข้าวมันไก่", "Drumstick"], ["ก๋วยเตี๋ยว", "Soup"], ["ข้าวไข่เจียว", "Egg"],
-      ["ส้มตำ", "Salad"], ["ข้าวหมูทอด", "Beef"], ["ข้าวปลา", "Fish"],
-      ["แซนด์วิช", "Sandwich"], ["ขนม", "Cookie"], ["ผลไม้", "Apple"], ["ขนมปัง", "Croissant"],
+      ["ข้าวมันไก่", "Chicken rice", "Poulet au riz", "Hähnchen mit Reis", "Drumstick"],
+      ["ก๋วยเตี๋ยว", "Noodle soup", "Soupe de nouilles", "Nudelsuppe", "Soup"],
+      ["ข้าวไข่เจียว", "Rice & omelette", "Riz & omelette", "Reis mit Omelett", "Egg"],
+      ["ส้มตำ", "Papaya salad", "Salade de papaye", "Papayasalat", "Salad"],
+      ["ขนม", "Snack", "Collation", "Snack", "Cookie"],
+      ["ผลไม้", "Fruit", "Fruits", "Obst", "Apple"],
     ],
   },
   {
-    name: "เครื่องดื่ม",
+    id: "drink",
     icons: { Coffee, CupSoda, Milk, Wine, Beer, GlassWater, Martini, Citrus, Droplet, Leaf },
     presets: [
-      ["กาแฟ", "Coffee"], ["ชาเย็น", "CupSoda"], ["น้ำเปล่า", "GlassWater"],
-      ["นม", "Milk"], ["น้ำผลไม้", "Citrus"], ["ชาเขียว", "Leaf"], ["เบียร์", "Beer"],
+      ["กาแฟ", "Coffee", "Café", "Kaffee", "Coffee"],
+      ["ชาเย็น", "Iced tea", "Thé glacé", "Eistee", "CupSoda"],
+      ["น้ำเปล่า", "Water", "Eau", "Wasser", "GlassWater"],
+      ["นม", "Milk", "Lait", "Milch", "Milk"],
+      ["น้ำผลไม้", "Juice", "Jus", "Saft", "Citrus"],
+      ["เบียร์", "Beer", "Bière", "Bier", "Beer"],
     ],
   },
   {
-    name: "เดินทาง",
+    id: "travel",
     icons: {
       Bus, BusFront, Car, CarTaxiFront, Bike, Train, TrainFront, Plane, Ship, Fuel,
       Footprints, TramFront, Truck, MapPin,
     },
     presets: [
-      ["รถเมล์", "Bus"], ["BTS/MRT", "TrainFront"], ["แท็กซี่", "CarTaxiFront"],
-      ["วินมอไซค์", "Bike"], ["น้ำมัน", "Fuel"], ["ทางด่วน", "Car"], ["เรือ", "Ship"],
+      ["รถเมล์", "Bus", "Bus", "Bus", "Bus"],
+      ["BTS/MRT", "BTS/MRT", "BTS/MRT", "BTS/MRT", "TrainFront"],
+      ["แท็กซี่", "Taxi", "Taxi", "Taxi", "CarTaxiFront"],
+      ["วินมอไซค์", "Motorbike taxi", "Moto-taxi", "Mototaxi", "Bike"],
+      ["น้ำมัน", "Fuel", "Carburant", "Sprit", "Fuel"],
+      ["ทางด่วน", "Toll", "Péage", "Maut", "Car"],
     ],
   },
   {
-    name: "ของใช้/บ้าน",
+    id: "home",
     icons: {
       ShoppingBasket, ShoppingCart, ShoppingBag, Store, Package, Shirt, Gift, Home,
       Lamp, Bed, Bath, Sofa, Wrench, Hammer, Key, Brush, SprayCan, Droplets,
     },
     presets: [
-      ["ของใช้", "ShoppingBasket"], ["ซื้อของ", "ShoppingCart"], ["เสื้อผ้า", "Shirt"],
-      ["ของขวัญ", "Gift"], ["ของใช้ทำความสะอาด", "SprayCan"], ["ซ่อมแซม", "Wrench"],
+      ["ของใช้", "Supplies", "Fournitures", "Besorgungen", "ShoppingBasket"],
+      ["ซื้อของ", "Shopping", "Courses", "Einkauf", "ShoppingCart"],
+      ["เสื้อผ้า", "Clothes", "Vêtements", "Kleidung", "Shirt"],
+      ["ของขวัญ", "Gift", "Cadeau", "Geschenk", "Gift"],
+      ["ซ่อมแซม", "Repairs", "Réparations", "Reparatur", "Wrench"],
     ],
   },
   {
-    name: "บิล/การเงิน",
+    id: "bills",
     icons: {
       Wallet, CreditCard, Banknote, Coins, PiggyBank, Receipt, Zap, Wifi, Smartphone,
       Phone, Tv, Lightbulb, Plug, Landmark,
     },
     presets: [
-      ["ค่าไฟ", "Zap"], ["ค่าเน็ต", "Wifi"], ["ค่าโทรศัพท์", "Smartphone"],
-      ["ค่าน้ำ", "Droplet"], ["ผ่อนบัตร", "CreditCard"], ["ออมเงิน", "PiggyBank"],
+      ["ค่าไฟ", "Electricity", "Électricité", "Strom", "Zap"],
+      ["ค่าเน็ต", "Internet", "Internet", "Internet", "Wifi"],
+      ["ค่าโทรศัพท์", "Phone bill", "Forfait mobile", "Handyrechnung", "Smartphone"],
+      ["ค่าน้ำ", "Water bill", "Eau", "Wasser", "Droplet"],
+      ["ผ่อนบัตร", "Card payment", "Carte de crédit", "Kreditkarte", "CreditCard"],
+      ["ออมเงิน", "Savings", "Épargne", "Sparen", "PiggyBank"],
     ],
   },
   {
-    name: "สุขภาพ/ชีวิต",
+    id: "life",
     icons: {
       Pill, Stethoscope, HeartPulse, Dumbbell, Baby, PawPrint, Heart, Syringe, Smile, Scissors,
     },
     presets: [
-      ["ยา", "Pill"], ["หาหมอ", "Stethoscope"], ["ฟิตเนส", "Dumbbell"],
-      ["ของลูก", "Baby"], ["สัตว์เลี้ยง", "PawPrint"], ["ตัดผม", "Scissors"],
+      ["ยา", "Medicine", "Médicaments", "Medikamente", "Pill"],
+      ["หาหมอ", "Doctor", "Médecin", "Arzt", "Stethoscope"],
+      ["ฟิตเนส", "Gym", "Salle de sport", "Fitnessstudio", "Dumbbell"],
+      ["ของลูก", "Kids", "Enfants", "Kinder", "Baby"],
+      ["สัตว์เลี้ยง", "Pets", "Animaux", "Haustiere", "PawPrint"],
+      ["ตัดผม", "Haircut", "Coiffeur", "Friseur", "Scissors"],
     ],
   },
   {
-    name: "บันเทิง/งาน",
+    id: "fun",
     icons: {
       Gamepad2, Film, Music, Headphones, Book, BookOpen, GraduationCap, Briefcase,
       Laptop, Camera, Ticket, PartyPopper, Palette, Umbrella, Gem, Star,
     },
     presets: [
-      ["เกม", "Gamepad2"], ["ดูหนัง", "Film"], ["เพลง", "Music"],
-      ["หนังสือ", "Book"], ["คอร์สเรียน", "GraduationCap"], ["ค่างาน", "Briefcase"],
+      ["เกม", "Games", "Jeux", "Spiele", "Gamepad2"],
+      ["ดูหนัง", "Movies", "Cinéma", "Kino", "Film"],
+      ["เพลง", "Music", "Musique", "Musik", "Music"],
+      ["หนังสือ", "Books", "Livres", "Bücher", "Book"],
+      ["คอร์สเรียน", "Course", "Cours", "Kurs", "GraduationCap"],
+      ["ค่างาน", "Work", "Travail", "Arbeit", "Briefcase"],
     ],
   },
 ];
@@ -264,14 +610,9 @@ const ICONS: Record<string, React.ElementType> = Object.assign(
   ...ICON_GROUPS.map((g) => g.icons)
 );
 
-const DEFAULT_FIXED: Fixed[] = [
-  { id: "f1", name: "ค่าห้อง", amount: 0 },
-  { id: "f2", name: "ค่าเดินทางฟิกซ์", amount: 0 },
-  { id: "f3", name: "ค่าน้ำ/ค่าไฟ", amount: 0 },
-  { id: "f4", name: "ค่าเน็ต", amount: 0 },
-];
-
-/* ---------- Helpers ---------- */
+/* ================================================================
+   Helpers
+================================================================ */
 const pad = (n: number) => String(n).padStart(2, "0");
 const toKey = (d: Date) =>
   `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -290,7 +631,7 @@ const diffDays = (a: Date, b: Date) =>
 const monthEndKey = (d: Date) =>
   toKey(new Date(d.getFullYear(), d.getMonth() + 1, 0));
 const fmt = (n: number) =>
-  Math.round(n).toLocaleString("th-TH", { maximumFractionDigits: 0 });
+  Math.round(n).toLocaleString(LOCALE, { maximumFractionDigits: 0 });
 const uid = () => Math.random().toString(36).slice(2, 10);
 
 const defaultData = (): Data => ({
@@ -301,15 +642,20 @@ const defaultData = (): Data => ({
   txs: [],
   quick: DEFAULT_QUICK,
   profile: null,
+  lang: "th",
+  font: "anuphan",
 });
 
-/* ---------- Page ---------- */
+/* ================================================================
+   Page
+================================================================ */
 export default function Page() {
   const [data, setData] = useState<Data>(defaultData);
   const [loaded, setLoaded] = useState(false);
   const [now, setNow] = useState<Date>(() => new Date());
   const [editingSetup, setEditingSetup] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
+  const [editingSettings, setEditingSettings] = useState(false);
 
   // load
   useEffect(() => {
@@ -334,16 +680,25 @@ export default function Page() {
 
   // อัปเดตเวลาทุกนาที เพื่อให้ข้ามวันแล้วคำนวณใหม่อัตโนมัติ
   useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 60000);
-    return () => clearInterval(t);
+    const timer = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(timer);
   }, []);
 
-  if (!loaded) {
-    return <div className="min-h-screen bg-slate-50" />;
-  }
+  const lang: Lang = LANGS.some((l) => l.id === data.lang) ? data.lang : "th";
+  LOCALE = LOCALES[lang];
 
-  if (!data.profile || editingProfile) {
-    return (
+  // ฟอนต์ + lang ของทั้งเว็บ
+  useEffect(() => {
+    document.body.style.fontFamily = fontFamilyOf(data.font);
+    document.documentElement.lang = lang;
+  }, [data.font, lang]);
+
+  let content: React.ReactNode;
+
+  if (!loaded) {
+    content = <div className="min-h-screen bg-slate-50" />;
+  } else if (!data.profile || editingProfile) {
+    content = (
       <ProfileScreen
         initial={data.profile}
         isEdit={!!data.profile}
@@ -354,10 +709,8 @@ export default function Page() {
         }}
       />
     );
-  }
-
-  if (!data.setupDone || editingSetup) {
-    return (
+  } else if (!data.setupDone || editingSetup) {
+    content = (
       <Setup
         data={data}
         now={now}
@@ -369,22 +722,38 @@ export default function Page() {
         }}
       />
     );
+  } else if (editingSettings) {
+    content = (
+      <SettingsScreen
+        lang={lang}
+        font={data.font}
+        onLang={(l) => setData((d) => ({ ...d, lang: l }))}
+        onFont={(f) => setData((d) => ({ ...d, font: f }))}
+        onBudget={() => {
+          setEditingSettings(false);
+          setEditingSetup(true);
+        }}
+        onBack={() => setEditingSettings(false)}
+      />
+    );
+  } else {
+    content = (
+      <Dashboard
+        data={data}
+        setData={setData}
+        now={now}
+        onOpenSettings={() => setEditingSettings(true)}
+        onOpenProfile={() => setEditingProfile(true)}
+      />
+    );
   }
 
-  return (
-    <Dashboard
-      data={data}
-      setData={setData}
-      now={now}
-      onOpenSetup={() => setEditingSetup(true)}
-      onOpenProfile={() => setEditingProfile(true)}
-    />
-  );
+  return <LangCtx.Provider value={lang}>{content}</LangCtx.Provider>;
 }
 
-/* ---------- Profile ---------- */
-const FONT = "font-[family-name:var(--font-anuphan)]";
-
+/* ================================================================
+   Avatars / Profile
+================================================================ */
 const Face = ({ y = 36, smile = true }: { y?: number; smile?: boolean }) => (
   <>
     <circle cx="25" cy={y} r="2.3" fill="#374151" />
@@ -514,7 +883,7 @@ const AVATARS: { key: string; bg: string; art: React.ReactNode }[] = [
         <circle cx="38" cy="33" r="2.2" fill="#374151" />
         <circle cx="21.5" cy="39" r="3" fill="#F9A8D4" opacity="0.6" />
         <circle cx="42.5" cy="39" r="3" fill="#F9A8D4" opacity="0.6" />
-        <polygon points="28.5,37 35.5,37 32,42 " fill="#FB923C" />
+        <polygon points="28.5,37 35.5,37 32,42" fill="#FB923C" />
       </>
     ),
   },
@@ -653,6 +1022,7 @@ function ProfileScreen({
   onSave: (p: Profile) => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   const [name, setName] = useState(initial?.name ?? "");
   const [avatar, setAvatar] = useState<Avatar>(initial?.avatar ?? { kind: "default" });
   const [picking, setPicking] = useState(false);
@@ -672,17 +1042,15 @@ function ProfileScreen({
       const src = await resizeImage(f);
       setAvatar({ kind: "photo", src });
     } catch {
-      alert("เปิดรูปนี้ไม่ได้ ลองเลือกรูปอื่น (JPG/PNG)");
+      alert(t("profile.uploadError"));
     }
   };
 
   return (
-    <main
-      className={`flex min-h-screen items-center justify-center bg-gradient-to-b from-emerald-50 to-slate-50 px-4 py-8 ${FONT}`}
-    >
+    <main className="flex min-h-screen items-center justify-center bg-gradient-to-b from-emerald-50 to-slate-50 px-4 py-8">
       <div className="w-full max-w-sm rounded-[2rem] bg-white p-7 shadow-xl">
         <h1 className="mb-6 text-center text-lg font-semibold text-slate-700">
-          {isEdit ? "แก้ไขโปรไฟล์" : "สร้างโปรไฟล์ของคุณ"}
+          {isEdit ? t("profile.edit") : t("profile.create")}
         </h1>
 
         <div className="relative mx-auto h-36 w-36">
@@ -692,7 +1060,7 @@ function ProfileScreen({
           />
           <button
             onClick={() => setPicking((v) => !v)}
-            aria-label="เปลี่ยนรูปโปรไฟล์"
+            aria-label={t("profile.change")}
             className="absolute bottom-1 right-1 flex h-10 w-10 items-center justify-center rounded-full bg-emerald-500 text-white shadow-md active:bg-emerald-600"
           >
             <Pencil size={18} />
@@ -725,13 +1093,13 @@ function ProfileScreen({
               onClick={() => fileRef.current?.click()}
               className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-white py-3 text-sm font-medium text-slate-600 shadow-sm active:bg-slate-100"
             >
-              <ImagePlus size={18} /> เลือกรูปจากเครื่อง
+              <ImagePlus size={18} /> {t("profile.upload")}
             </button>
             <button
               onClick={() => setAvatar({ kind: "default" })}
               className="mt-2 w-full py-2 text-xs text-slate-400 active:text-slate-600"
             >
-              ใช้รูปเริ่มต้น
+              {t("profile.default")}
             </button>
             <input
               ref={fileRef}
@@ -748,8 +1116,8 @@ function ProfileScreen({
           maxLength={20}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && submit()}
-          placeholder="คุณชื่ออะไร?"
-          className={`mt-6 w-full rounded-2xl border border-slate-200 px-4 py-4 text-center text-lg text-slate-700 outline-none placeholder:font-light placeholder:text-slate-300 focus:border-emerald-400 ${FONT}`}
+          placeholder={t("profile.namePh")}
+          className="mt-6 w-full rounded-2xl border border-slate-200 px-4 py-4 text-center text-lg text-slate-700 outline-none placeholder:font-light placeholder:text-slate-300 focus:border-emerald-400"
         />
 
         <div className="mt-5 flex gap-3">
@@ -758,7 +1126,7 @@ function ProfileScreen({
               onClick={onCancel}
               className="flex-1 rounded-2xl bg-slate-100 py-4 font-semibold text-slate-600 active:bg-slate-200"
             >
-              ยกเลิก
+              {t("common.cancel")}
             </button>
           )}
           <button
@@ -766,7 +1134,7 @@ function ProfileScreen({
             disabled={!canSave}
             className="flex-[2] rounded-2xl bg-emerald-500 py-4 font-bold text-white active:bg-emerald-600 disabled:bg-slate-200 disabled:text-slate-400"
           >
-            {isEdit ? "บันทึก" : "เริ่มเลย"}
+            {isEdit ? t("common.save") : t("profile.start")}
           </button>
         </div>
       </div>
@@ -774,7 +1142,151 @@ function ProfileScreen({
   );
 }
 
-/* ---------- Setup ---------- */
+/* ================================================================
+   Settings
+================================================================ */
+function OptionRow({
+  active,
+  onClick,
+  children,
+  style,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+  style?: React.CSSProperties;
+}) {
+  const t = useT();
+  return (
+    <button
+      onClick={onClick}
+      aria-pressed={active}
+      style={style}
+      className={`flex w-full items-center justify-between rounded-2xl border-2 px-4 py-3.5 text-left transition ${
+        active
+          ? "border-emerald-400 bg-emerald-50 text-emerald-700 shadow-[0_0_0_3px_rgba(52,211,153,0.25),0_0_20px_rgba(16,185,129,0.45)]"
+          : "border-transparent bg-slate-50 text-slate-700 active:bg-slate-100"
+      }`}
+    >
+      <span className={active ? "[text-shadow:0_0_10px_rgba(16,185,129,0.55)]" : ""}>
+        {children}
+      </span>
+      {active && (
+        <span
+          title={t("settings.active")}
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-white shadow-[0_0_12px_rgba(16,185,129,0.8)]"
+        >
+          <Check size={16} strokeWidth={3} />
+          <span className="sr-only">{t("settings.active")}</span>
+        </span>
+      )}
+    </button>
+  );
+}
+
+function SettingsScreen({
+  lang,
+  font,
+  onLang,
+  onFont,
+  onBudget,
+  onBack,
+}: {
+  lang: Lang;
+  font: string;
+  onLang: (l: Lang) => void;
+  onFont: (f: string) => void;
+  onBudget: () => void;
+  onBack: () => void;
+}) {
+  const t = useT();
+  return (
+    <main className="min-h-screen bg-slate-50 pb-12">
+      <div className="mx-auto max-w-md px-4 pt-6">
+        <header className="mb-5 flex items-center gap-2">
+          <button
+            onClick={onBack}
+            aria-label={t("common.back")}
+            className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-slate-600 shadow-sm active:bg-slate-100"
+          >
+            <ChevronLeft size={22} />
+          </button>
+          <h1 className="text-xl font-bold text-slate-800">{t("settings.title")}</h1>
+        </header>
+
+        {/* งบประมาณ */}
+        <section className="mb-4 rounded-3xl bg-white p-4 shadow-sm">
+          <button
+            onClick={onBudget}
+            className="flex w-full items-center gap-3 rounded-2xl bg-slate-50 px-4 py-3.5 text-left active:bg-slate-100"
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
+              <Wallet size={20} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-semibold text-slate-800">{t("setup.titleEdit")}</span>
+              <span className="block text-xs text-slate-500">{t("settings.budgetDesc")}</span>
+            </span>
+            <ChevronRight size={20} className="text-slate-400" />
+          </button>
+        </section>
+
+        {/* ฟอนต์ */}
+        <section className="mb-4 rounded-3xl bg-white p-4 shadow-sm">
+          <div className="mb-3 flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
+              <Type size={20} />
+            </span>
+            <div>
+              <h2 className="font-semibold text-slate-800">{t("settings.font")}</h2>
+              <p className="text-xs text-slate-500">{t("settings.fontDesc")}</p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {FONTS.map((f) => (
+              <OptionRow
+                key={f.id}
+                active={font === f.id}
+                onClick={() => onFont(f.id)}
+                style={{ fontFamily: fontFamilyOf(f.id) }}
+              >
+                <span className="block text-base font-semibold">{f.name}</span>
+                <span className="block text-sm opacity-70">สวัสดี Hello Bonjour Äö ฿1,234</span>
+              </OptionRow>
+            ))}
+          </div>
+        </section>
+
+        {/* ภาษา */}
+        <section className="rounded-3xl bg-white p-4 shadow-sm">
+          <div className="mb-3 flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
+              <Languages size={20} />
+            </span>
+            <div>
+              <h2 className="font-semibold text-slate-800">{t("settings.language")}</h2>
+              <p className="text-xs text-slate-500">{t("settings.langDesc")}</p>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {LANGS.map((l) => (
+              <OptionRow key={l.id} active={lang === l.id} onClick={() => onLang(l.id)}>
+                <span className="flex items-center gap-3 text-base font-semibold">
+                  <span className="text-xl">{l.flag}</span>
+                  {l.native}
+                </span>
+              </OptionRow>
+            ))}
+          </div>
+        </section>
+      </div>
+    </main>
+  );
+}
+
+/* ================================================================
+   Setup (งบประมาณ)
+================================================================ */
 function Setup({
   data,
   now,
@@ -788,18 +1300,24 @@ function Setup({
   onSave: (d: Data) => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   const todayKey = toKey(now);
-  const defaultDaysLeft = Math.max(
-    1,
-    diffDays(now, fromKey(data.endDate)) + 1
-  );
+  const defaultDaysLeft = Math.max(1, diffDays(now, fromKey(data.endDate)) + 1);
 
   const [budget, setBudget] = useState(String(data.budget));
   const [fixed, setFixed] = useState<{ id: string; name: string; amount: string }[]>(
-    data.fixed.map((f) => ({ ...f, amount: f.amount ? String(f.amount) : "" }))
+    data.fixed.map((f) => ({
+      id: f.id,
+      name: FIXED_TH[f.id] === f.name ? t(`fixed.${f.id}`) : f.name,
+      amount: f.amount ? String(f.amount) : "",
+    }))
   );
   const [days, setDays] = useState(
-    String(isEdit ? defaultDaysLeft : Math.max(1, diffDays(now, fromKey(monthEndKey(now))) + 1))
+    String(
+      isEdit
+        ? defaultDaysLeft
+        : Math.max(1, diffDays(now, fromKey(monthEndKey(now))) + 1)
+    )
   );
 
   const budgetNum = Number(budget) || 0;
@@ -809,14 +1327,18 @@ function Setup({
   const perDay = net / daysNum;
 
   const submit = () => {
-    if (budgetNum <= 0) return alert("กรุณาใส่งบตั้งต้น");
+    if (budgetNum <= 0) return alert(t("setup.needBudget"));
     onSave({
       ...data,
       setupDone: true,
       budget: budgetNum,
       fixed: fixed
         .filter((f) => f.name.trim() || Number(f.amount))
-        .map((f) => ({ id: f.id, name: f.name.trim() || "ค่าใช้จ่าย", amount: Number(f.amount) || 0 })),
+        .map((f) => ({
+          id: f.id,
+          name: f.name.trim() || t("setup.unnamed"),
+          amount: Number(f.amount) || 0,
+        })),
       endDate: toKey(addDays(fromKey(todayKey), daysNum - 1)),
     });
   };
@@ -830,7 +1352,7 @@ function Setup({
           </div>
           <div>
             <h1 className="text-xl font-bold text-slate-800">
-              {isEdit ? "ตั้งค่างบประมาณ" : "ตั้งค่าเริ่มต้น"}
+              {isEdit ? t("setup.titleEdit") : t("setup.titleFirst")}
             </h1>
             <p className="text-sm text-slate-500">Survival Mode · Daily Safe-to-Spend</p>
           </div>
@@ -838,7 +1360,7 @@ function Setup({
 
         <section className="mb-4 rounded-2xl bg-white p-4 shadow-sm">
           <label className="mb-1 block text-sm font-medium text-slate-600">
-            งบตั้งต้นประจำเดือน (บาท)
+            {t("setup.budget")}
           </label>
           <input
             type="number"
@@ -851,7 +1373,7 @@ function Setup({
 
         <section className="mb-4 rounded-2xl bg-white p-4 shadow-sm">
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-sm font-medium text-slate-600">ค่าใช้จ่ายคงที่</h2>
+            <h2 className="text-sm font-medium text-slate-600">{t("setup.fixed")}</h2>
             <span className="text-sm font-semibold text-rose-500">−{fmt(fixedTotal)}</span>
           </div>
           <div className="space-y-2">
@@ -859,7 +1381,7 @@ function Setup({
               <div key={f.id} className="flex items-center gap-2">
                 <input
                   value={f.name}
-                  placeholder="ชื่อรายการ"
+                  placeholder={t("setup.itemName")}
                   onChange={(e) =>
                     setFixed((arr) => arr.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))
                   }
@@ -878,7 +1400,7 @@ function Setup({
                 <button
                   onClick={() => setFixed((arr) => arr.filter((_, j) => j !== i))}
                   className="flex h-11 w-11 items-center justify-center rounded-xl text-slate-400 active:bg-slate-100"
-                  aria-label="ลบ"
+                  aria-label={t("common.delete")}
                 >
                   <X size={18} />
                 </button>
@@ -889,13 +1411,13 @@ function Setup({
             onClick={() => setFixed((arr) => [...arr, { id: uid(), name: "", amount: "" }])}
             className="mt-3 flex w-full items-center justify-center gap-1 rounded-xl border border-dashed border-slate-300 py-3 text-sm font-medium text-slate-500 active:bg-slate-50"
           >
-            <Plus size={16} /> เพิ่มรายการ
+            <Plus size={16} /> {t("setup.addItem")}
           </button>
         </section>
 
         <section className="mb-4 rounded-2xl bg-white p-4 shadow-sm">
           <label className="mb-1 block text-sm font-medium text-slate-600">
-            จำนวนวันที่เหลือ (รวมวันนี้)
+            {t("setup.days")}
           </label>
           <div className="flex items-center gap-3">
             <input
@@ -911,26 +1433,22 @@ function Setup({
               }
               className="rounded-xl bg-slate-100 px-3 py-3 text-sm font-medium text-slate-600 active:bg-slate-200"
             >
-              ถึงสิ้นเดือน
+              {t("setup.toEnd")}
             </button>
           </div>
-          <p className="mt-2 text-xs text-slate-400">
-            ระบบคำนวณจากวันที่จริงให้อัตโนมัติ แก้ไขเองได้ถ้ารอบของคุณไม่ตรงสิ้นเดือน
-          </p>
+          <p className="mt-2 text-xs text-slate-400">{t("setup.daysHint")}</p>
         </section>
 
         <section className="mb-6 rounded-2xl bg-emerald-50 p-4">
           <div className="flex justify-between text-sm text-emerald-800">
-            <span>เงินใช้จ่ายจริง (Net)</span>
-            <b>{fmt(net)} บาท</b>
+            <span>{t("setup.net")}</span>
+            <b>{fmt(net)} ฿</b>
           </div>
           <div className="mt-1 flex justify-between text-sm text-emerald-800">
-            <span>ใช้ได้วันละประมาณ</span>
-            <b>{fmt(Math.max(0, perDay))} บาท</b>
+            <span>{t("setup.perDay")}</span>
+            <b>{fmt(Math.max(0, perDay))} ฿</b>
           </div>
-          {net < 0 && (
-            <p className="mt-2 text-xs text-rose-600">ค่าใช้จ่ายคงที่เกินงบตั้งต้น กรุณาตรวจสอบ</p>
-          )}
+          {net < 0 && <p className="mt-2 text-xs text-rose-600">{t("setup.negative")}</p>}
         </section>
 
         <div className="flex gap-3">
@@ -939,14 +1457,14 @@ function Setup({
               onClick={onCancel}
               className="flex-1 rounded-2xl bg-slate-200 py-4 text-base font-semibold text-slate-700 active:bg-slate-300"
             >
-              ยกเลิก
+              {t("common.cancel")}
             </button>
           )}
           <button
             onClick={submit}
             className="flex-[2] rounded-2xl bg-emerald-500 py-4 text-base font-bold text-white active:bg-emerald-600"
           >
-            {isEdit ? "บันทึก" : "เริ่มใช้งาน"}
+            {isEdit ? t("common.save") : t("setup.start")}
           </button>
         </div>
       </div>
@@ -954,7 +1472,9 @@ function Setup({
   );
 }
 
-/* ---------- Quick Button Editor ---------- */
+/* ================================================================
+   Quick Button Editor
+================================================================ */
 function QuickEditor({
   item,
   isNew,
@@ -968,9 +1488,12 @@ function QuickEditor({
   onDelete: (id: string) => void;
   onClose: () => void;
 }) {
-  const [label, setLabel] = useState(item.label);
+  const t = useT();
+  const lang = useLang();
+  const initialLabel = quickLabel(item, t);
+  const [label, setLabel] = useState(initialLabel);
   const [amountStr, setAmountStr] = useState(item.amount ? String(item.amount) : "");
-  const [category, setCategory] = useState(item.category);
+  const [category, setCategory] = useState(catOf(item.category).id);
   const [icon, setIcon] = useState(item.icon);
   const [g, setG] = useState(() => {
     const i = ICON_GROUPS.findIndex((x) => item.icon in x.icons);
@@ -990,9 +1513,9 @@ function QuickEditor({
       >
         <div className="mb-4 flex items-center justify-between">
           <h3 className="text-lg font-bold text-slate-800">
-            {isNew ? "เพิ่มปุ่มบันทึกด่วน" : "แก้ไขปุ่มบันทึกด่วน"}
+            {isNew ? t("qe.new") : t("qe.edit")}
           </h3>
-          <button onClick={onClose} className="p-2 text-slate-400" aria-label="ปิด">
+          <button onClick={onClose} className="p-2 text-slate-400" aria-label={t("common.close")}>
             <X size={20} />
           </button>
         </div>
@@ -1001,16 +1524,18 @@ function QuickEditor({
         <div className="mb-4 flex h-16 items-center justify-between rounded-2xl bg-slate-100 px-4">
           <span className="flex min-w-0 items-center gap-2 text-slate-700">
             <Preview size={20} className="shrink-0" />
-            <span className="truncate font-medium">{label || "ชื่อรายการ"}</span>
+            <span className="truncate font-medium">{label || t("setup.itemName")}</span>
           </span>
-          <span className="ml-2 font-bold text-slate-800">{amountNum > 0 ? fmt(amountNum) : "0"}</span>
+          <span className="ml-2 font-bold text-slate-800">
+            {amountNum > 0 ? fmt(amountNum) : "0"}
+          </span>
         </div>
 
         <div className="mb-3 flex gap-2">
           <input
             value={label}
             onChange={(e) => setLabel(e.target.value)}
-            placeholder="ชื่อรายการ"
+            placeholder={t("setup.itemName")}
             className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-emerald-500"
           />
           <input
@@ -1018,54 +1543,57 @@ function QuickEditor({
             inputMode="decimal"
             value={amountStr}
             onChange={(e) => setAmountStr(e.target.value)}
-            placeholder="บาท"
+            placeholder={t("qe.baht")}
             className="w-24 rounded-xl border border-slate-200 px-3 py-3 text-right text-lg font-bold outline-none focus:border-emerald-500"
           />
         </div>
 
-        <p className="mb-1 text-xs font-medium text-slate-500">หมวดหมู่รายจ่าย</p>
+        <p className="mb-1 text-xs font-medium text-slate-500">{t("qe.category")}</p>
         <div className="mb-4 flex flex-wrap gap-2">
           {CATEGORIES.map((c) => (
             <button
-              key={c.name}
-              onClick={() => setCategory(c.name)}
+              key={c.id}
+              onClick={() => setCategory(c.id)}
               className={`rounded-full px-3 py-2 text-sm ${
-                category === c.name ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-600"
+                category === c.id ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-600"
               }`}
             >
-              {c.name}
+              {t(`cat.${c.id}`)}
             </button>
           ))}
         </div>
 
-        <p className="mb-1 text-xs font-medium text-slate-500">เลือกโลโก้ (แยกตามหมวด)</p>
+        <p className="mb-1 text-xs font-medium text-slate-500">{t("qe.pickIcon")}</p>
         <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
           {ICON_GROUPS.map((x, i) => (
             <button
-              key={x.name}
+              key={x.id}
               onClick={() => setG(i)}
               className={`shrink-0 whitespace-nowrap rounded-full px-3 py-2 text-sm ${
                 g === i ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-600"
               }`}
             >
-              {x.name}
+              {t(`grp.${x.id}`)}
             </button>
           ))}
         </div>
 
         <div className="mb-3 flex flex-wrap gap-2">
-          {group.presets.map(([name, key]) => (
-            <button
-              key={name}
-              onClick={() => {
-                setLabel(name);
-                setIcon(key);
-              }}
-              className="rounded-full border border-slate-200 px-3 py-1.5 text-xs text-slate-600 active:bg-emerald-50"
-            >
-              {name}
-            </button>
-          ))}
+          {group.presets.map((p) => {
+            const name = p[LANG_IDX[lang]];
+            return (
+              <button
+                key={p[0]}
+                onClick={() => {
+                  setLabel(name);
+                  setIcon(p[4]);
+                }}
+                className="rounded-full border border-slate-200 px-3 py-1.5 text-xs text-slate-600 active:bg-emerald-50"
+              >
+                {name}
+              </button>
+            );
+          })}
         </div>
 
         <div className="mb-5 grid grid-cols-6 gap-2">
@@ -1088,7 +1616,7 @@ function QuickEditor({
             <button
               onClick={() => onDelete(item.id)}
               className="flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-50 text-rose-500 active:bg-rose-100"
-              aria-label="ลบปุ่ม"
+              aria-label={t("qe.delete")}
             >
               <Trash2 size={20} />
             </button>
@@ -1096,11 +1624,18 @@ function QuickEditor({
           <button
             disabled={!canSave}
             onClick={() =>
-              onSave({ id: item.id, label: label.trim(), amount: amountNum, category, icon })
+              onSave({
+                id: item.id,
+                // ถ้าไม่ได้แก้ชื่อ เก็บชื่อเดิมไว้ (ปุ่มเริ่มต้นจะยังแปลภาษาตามระบบได้)
+                label: label.trim() === initialLabel ? item.label : label.trim(),
+                amount: amountNum,
+                category,
+                icon,
+              })
             }
             className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-500 py-4 font-bold text-white active:bg-emerald-600 disabled:bg-slate-200 disabled:text-slate-400"
           >
-            <Check size={18} /> บันทึก
+            <Check size={18} /> {t("common.save")}
           </button>
         </div>
       </div>
@@ -1108,29 +1643,32 @@ function QuickEditor({
   );
 }
 
-/* ---------- Dashboard ---------- */
+/* ================================================================
+   Dashboard
+================================================================ */
 function Dashboard({
   data,
   setData,
   now,
-  onOpenSetup,
+  onOpenSettings,
   onOpenProfile,
 }: {
   data: Data;
   setData: React.Dispatch<React.SetStateAction<Data>>;
   now: Date;
-  onOpenSetup: () => void;
+  onOpenSettings: () => void;
   onOpenProfile: () => void;
 }) {
+  const t = useT();
   const todayKey = toKey(now);
 
   const calc = useMemo(() => {
     const fixedTotal = data.fixed.reduce((s, f) => s + f.amount, 0);
     const net = data.budget - fixedTotal;
-    const spentTotal = data.txs.reduce((s, t) => s + t.amount, 0);
+    const spentTotal = data.txs.reduce((s, x) => s + x.amount, 0);
     const spentToday = data.txs
-      .filter((t) => t.dateKey === todayKey)
-      .reduce((s, t) => s + t.amount, 0);
+      .filter((x) => x.dateKey === todayKey)
+      .reduce((s, x) => s + x.amount, 0);
     const spentBeforeToday = spentTotal - spentToday;
 
     const rawDays = diffDays(now, fromKey(data.endDate)) + 1;
@@ -1163,9 +1701,9 @@ function Dashboard({
     calc.pct > 60 ? "green" : calc.pct >= 25 ? "yellow" : "red";
 
   const zoneStyle = {
-    green: { bar: "bg-emerald-500", text: "text-emerald-600", label: "🟢 ปลอดภัย", bg: "bg-emerald-50" },
-    yellow: { bar: "bg-amber-400", text: "text-amber-600", label: "🟡 ระวัง", bg: "bg-amber-50" },
-    red: { bar: "bg-rose-500", text: "text-rose-600", label: "🔴 Survival Mode", bg: "bg-rose-50" },
+    green: { bar: "bg-emerald-500", text: "text-emerald-600", emoji: "🟢", bg: "bg-emerald-50" },
+    yellow: { bar: "bg-amber-400", text: "text-amber-600", emoji: "🟡", bg: "bg-amber-50" },
+    red: { bar: "bg-rose-500", text: "text-rose-600", emoji: "🔴", bg: "bg-rose-50" },
   }[zone];
 
   const showSurvival = zone === "red" || calc.daysLeft <= 5;
@@ -1186,7 +1724,7 @@ function Dashboard({
   };
 
   const [amountStr, setAmountStr] = useState("");
-  const [category, setCategory] = useState(CATEGORIES[0].name);
+  const [category, setCategory] = useState("food");
   const [note, setNote] = useState("");
 
   const submitCustom = () => {
@@ -1216,34 +1754,42 @@ function Dashboard({
     setQEditor(null);
   };
 
-  // Edit
+  // Edit transaction
   const [editing, setEditing] = useState<Tx | null>(null);
   const [eAmount, setEAmount] = useState("");
-  const [eCat, setECat] = useState(CATEGORIES[0].name);
+  const [eCat, setECat] = useState("food");
   const [eNote, setENote] = useState("");
 
-  const openEdit = (t: Tx) => {
-    setEditing(t);
-    setEAmount(String(t.amount));
-    setECat(t.category);
-    setENote(t.note);
+  const openEdit = (x: Tx) => {
+    setEditing(x);
+    setEAmount(String(x.amount));
+    setECat(catOf(x.category).id);
+    setENote(noteLabel(x.note, t));
   };
   const saveEdit = () => {
     const n = Number(eAmount);
     if (!editing || !(n > 0)) return;
+    const original = noteLabel(editing.note, t);
     setData((d) => ({
       ...d,
-      txs: d.txs.map((t) =>
-        t.id === editing.id ? { ...t, amount: n, category: eCat, note: eNote.trim() } : t
+      txs: d.txs.map((x) =>
+        x.id === editing.id
+          ? {
+              ...x,
+              amount: n,
+              category: eCat,
+              note: eNote.trim() === original ? x.note : eNote.trim(),
+            }
+          : x
       ),
     }));
     setEditing(null);
   };
   const removeTx = (id: string) =>
-    setData((d) => ({ ...d, txs: d.txs.filter((t) => t.id !== id) }));
+    setData((d) => ({ ...d, txs: d.txs.filter((x) => x.id !== id) }));
 
   const resetAll = () => {
-    if (!confirm("เริ่มรอบใหม่? ประวัติรายจ่ายทั้งหมดจะถูกลบ")) return;
+    if (!confirm(t("reset.confirm"))) return;
     setData({
       ...defaultData(),
       setupDone: false,
@@ -1251,11 +1797,12 @@ function Dashboard({
       fixed: data.fixed,
       quick: data.quick,
       profile: data.profile,
+      lang: data.lang,
+      font: data.font,
     });
   };
 
   const recent = data.txs.slice(0, 20);
-  const catIcon = (name: string) => CATEGORIES.find((c) => c.name === name)?.icon ?? Wallet;
 
   const perMeal = Math.max(0, calc.allowanceToday) / 3;
   const perMealLeft = Math.max(0, calc.remainingToday) / 3;
@@ -1271,7 +1818,7 @@ function Dashboard({
           <div className="relative flex items-center gap-4">
             <button
               onClick={onOpenProfile}
-              aria-label="แก้ไขโปรไฟล์"
+              aria-label={t("profile.edit")}
               className="shrink-0 rounded-full active:scale-95"
             >
               <AvatarView
@@ -1279,8 +1826,8 @@ function Dashboard({
                 className="h-16 w-16 border-4 border-white/70 shadow"
               />
             </button>
-            <p className={`min-w-0 truncate text-xl font-semibold text-white ${FONT}`}>
-              สวัสดี, {data.profile?.name ?? ""}
+            <p className="min-w-0 truncate text-xl font-semibold text-white">
+              {t("banner.hello", { name: data.profile?.name ?? "" })}
             </p>
           </div>
         </div>
@@ -1289,14 +1836,16 @@ function Dashboard({
         <header className="mb-4 flex items-center justify-between">
           <div>
             <p className="text-xs text-slate-400">
-              {now.toLocaleDateString("th-TH", { weekday: "long", day: "numeric", month: "long" })}
+              {now.toLocaleDateString(LOCALE, { weekday: "long", day: "numeric", month: "long" })}
             </p>
-            <h1 className="text-lg font-bold text-slate-800">เหลืออีก {calc.daysLeft} วัน</h1>
+            <h1 className="text-lg font-bold text-slate-800">
+              {t(calc.daysLeft === 1 ? "dash.daysLeft1" : "dash.daysLeft", { n: calc.daysLeft })}
+            </h1>
           </div>
           <button
-            onClick={onOpenSetup}
+            onClick={onOpenSettings}
             className="flex h-11 w-11 items-center justify-center rounded-xl bg-white text-slate-500 shadow-sm active:bg-slate-100"
-            aria-label="ตั้งค่า"
+            aria-label={t("settings.title")}
           >
             <Settings size={20} />
           </button>
@@ -1305,27 +1854,34 @@ function Dashboard({
         {calc.expired && (
           <div className="mb-4 flex items-start gap-2 rounded-2xl bg-amber-50 p-3 text-sm text-amber-800">
             <AlertTriangle size={18} className="mt-0.5 shrink-0" />
-            <span>
-              รอบที่ตั้งไว้สิ้นสุดแล้ว กด <b>ตั้งค่า</b> หรือ <b>เริ่มรอบใหม่</b> ด้านล่างเพื่อเริ่มรอบถัดไป
-            </span>
+            <span>{t("dash.expired")}</span>
           </div>
         )}
 
         {/* Safe to spend */}
         <section className={`mb-4 rounded-3xl p-5 shadow-sm ${zoneStyle.bg}`}>
-          <p className="text-sm font-medium text-slate-500">ใช้ได้อีกวันนี้ (Safe-to-Spend)</p>
-          <p className={`mt-1 text-5xl font-extrabold tracking-tight ${calc.remainingToday < 0 ? "text-rose-600" : zoneStyle.text}`}>
+          <p className="text-sm font-medium text-slate-500">{t("dash.safe")}</p>
+          <p
+            className={`mt-1 text-5xl font-extrabold tracking-tight ${
+              calc.remainingToday < 0 ? "text-rose-600" : zoneStyle.text
+            }`}
+          >
             {calc.remainingToday < 0 ? "−" : ""}฿{fmt(Math.abs(calc.remainingToday))}
           </p>
           <p className="mt-2 text-sm text-slate-500">
-            งบวันนี้ ฿{fmt(Math.max(0, calc.allowanceToday))} · ใช้ไปแล้ว ฿{fmt(calc.spentToday)}
+            {t("dash.todayBudget", {
+              a: fmt(Math.max(0, calc.allowanceToday)),
+              b: fmt(calc.spentToday),
+            })}
           </p>
           {calc.daysLeft > 1 && (
             <p className="mt-1 flex items-center gap-1 text-sm text-slate-500">
-              <TrendingUp size={14} />
-              พรุ่งนี้จะได้วันละ ฿{fmt(Math.max(0, calc.tomorrow))}
-              {calc.remainingToday > 0 && " (รวมยอดทบแล้ว)"}
-              {calc.remainingToday < 0 && " (ถูกหักจากส่วนที่ใช้เกิน)"}
+              <TrendingUp size={14} className="shrink-0" />
+              <span>
+                {t("dash.tomorrow", { n: fmt(Math.max(0, calc.tomorrow)) })}
+                {calc.remainingToday > 0 && ` ${t("dash.carried")}`}
+                {calc.remainingToday < 0 && ` ${t("dash.cut")}`}
+              </span>
             </p>
           )}
         </section>
@@ -1333,7 +1889,9 @@ function Dashboard({
         {/* Survival bar */}
         <section className="mb-4 rounded-2xl bg-white p-4 shadow-sm">
           <div className="mb-2 flex items-center justify-between text-sm">
-            <span className={`font-semibold ${zoneStyle.text}`}>{zoneStyle.label}</span>
+            <span className={`font-semibold ${zoneStyle.text}`}>
+              {zoneStyle.emoji} {t(`zone.${zone}`)}
+            </span>
             <span className="text-slate-500">{Math.max(0, Math.round(calc.pct))}%</span>
           </div>
           <div className="relative h-5 overflow-hidden rounded-full bg-slate-100">
@@ -1345,8 +1903,8 @@ function Dashboard({
             <div className="absolute inset-y-0 left-[60%] w-px bg-white/80" />
           </div>
           <div className="mt-2 flex justify-between text-xs text-slate-400">
-            <span>เหลือ ฿{fmt(calc.remainingNet)}</span>
-            <span>จาก ฿{fmt(calc.net)}</span>
+            <span>{t("bar.left", { n: fmt(calc.remainingNet) })}</span>
+            <span>{t("bar.of", { n: fmt(calc.net) })}</span>
           </div>
         </section>
 
@@ -1354,18 +1912,23 @@ function Dashboard({
         {showSurvival && (
           <section className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 p-4">
             <div className="mb-1 flex items-center gap-2 font-semibold text-rose-700">
-              <Flame size={18} /> โหมดกู้วิกฤต
+              <Flame size={18} /> {t("surv.title")}
             </div>
-            <p className="text-sm text-rose-800">
-              เหลือวันละ <b>฿{fmt(Math.max(0, calc.allowanceToday))}</b> ➔ มื้อละ{" "}
-              <b>฿{fmt(perMeal)}</b>
+            <p className="text-sm font-semibold text-rose-800">
+              {t("surv.line", {
+                a: fmt(Math.max(0, calc.allowanceToday)),
+                b: fmt(perMeal),
+              })}
             </p>
             <p className="mt-1 text-xs text-rose-700">
-              วันนี้ที่เหลือ ฿{fmt(Math.max(0, calc.remainingToday))} ≈ มื้อละ ฿{fmt(perMealLeft)} (แบ่ง 3 มื้อ)
+              {t("surv.today", {
+                a: fmt(Math.max(0, calc.remainingToday)),
+                b: fmt(perMealLeft),
+              })}
             </p>
             {calc.remainingNet < 0 && (
               <p className="mt-1 text-xs font-semibold text-rose-700">
-                ใช้เกินงบรวมแล้ว ฿{fmt(Math.abs(calc.remainingNet))}
+                {t("surv.over", { n: fmt(Math.abs(calc.remainingNet)) })}
               </p>
             )}
           </section>
@@ -1375,7 +1938,7 @@ function Dashboard({
         <section className="mb-4 rounded-2xl bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-medium text-slate-600">
-              {quickEdit ? "แตะปุ่มเพื่อแก้ไข" : "บันทึกด่วน (แตะครั้งเดียว)"}
+              {quickEdit ? t("quick.editTitle") : t("quick.title")}
             </h2>
             <button
               onClick={() => setQuickEdit((v) => !v)}
@@ -1384,7 +1947,7 @@ function Dashboard({
               }`}
             >
               {quickEdit ? <Check size={14} /> : <Pencil size={14} />}
-              {quickEdit ? "เสร็จ" : "ปรับแต่ง"}
+              {quickEdit ? t("common.done") : t("quick.customize")}
             </button>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -1406,7 +1969,7 @@ function Dashboard({
                 >
                   <span className="flex min-w-0 items-center gap-2 text-slate-700">
                     <Icon size={20} className="shrink-0" />
-                    <span className="truncate font-medium">{q.label}</span>
+                    <span className="truncate font-medium">{quickLabel(q, t)}</span>
                   </span>
                   <span className="ml-2 font-bold text-slate-800">{fmt(q.amount)}</span>
                 </button>
@@ -1416,13 +1979,13 @@ function Dashboard({
               <button
                 onClick={() =>
                   setQEditor({
-                    item: { id: uid(), label: "", amount: 0, category: CATEGORIES[0].name, icon: "Utensils" },
+                    item: { id: uid(), label: "", amount: 0, category: "food", icon: "Utensils" },
                     isNew: true,
                   })
                 }
                 className="flex h-16 items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-slate-300 text-slate-500 active:bg-slate-50"
               >
-                <Plus size={18} /> เพิ่มปุ่ม
+                <Plus size={18} /> {t("quick.add")}
               </button>
             )}
           </div>
@@ -1431,16 +1994,16 @@ function Dashboard({
             <div className="mb-3 flex flex-wrap gap-2">
               {CATEGORIES.map((c) => {
                 const Icon = c.icon;
-                const active = category === c.name;
+                const active = category === c.id;
                 return (
                   <button
-                    key={c.name}
-                    onClick={() => setCategory(c.name)}
+                    key={c.id}
+                    onClick={() => setCategory(c.id)}
                     className={`flex items-center gap-1 rounded-full px-3 py-2 text-sm ${
                       active ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-600"
                     }`}
                   >
-                    <Icon size={14} /> {c.name}
+                    <Icon size={14} /> {t(`cat.${c.id}`)}
                   </button>
                 );
               })}
@@ -1452,14 +2015,14 @@ function Dashboard({
                 value={amountStr}
                 onChange={(e) => setAmountStr(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && submitCustom()}
-                placeholder="จำนวนเงิน"
+                placeholder={t("quick.amountPh")}
                 className="w-32 rounded-xl border border-slate-200 px-3 py-3 text-lg font-bold outline-none focus:border-emerald-500"
               />
               <input
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && submitCustom()}
-                placeholder="โน้ต (ไม่บังคับ)"
+                placeholder={t("quick.notePh")}
                 className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-emerald-500"
               />
             </div>
@@ -1468,47 +2031,58 @@ function Dashboard({
               disabled={!(Number(amountStr) > 0)}
               className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 py-4 text-base font-bold text-white active:bg-emerald-600 disabled:bg-slate-200 disabled:text-slate-400"
             >
-              <Plus size={20} /> บันทึกรายจ่าย
+              <Plus size={20} /> {t("quick.log")}
             </button>
           </div>
         </section>
 
         {/* Recent */}
         <section className="rounded-2xl bg-white p-4 shadow-sm">
-          <h2 className="mb-2 text-sm font-medium text-slate-600">รายการล่าสุด</h2>
+          <h2 className="mb-2 text-sm font-medium text-slate-600">{t("recent.title")}</h2>
           {recent.length === 0 ? (
-            <p className="py-6 text-center text-sm text-slate-400">ยังไม่มีรายการ</p>
+            <p className="py-6 text-center text-sm text-slate-400">{t("recent.empty")}</p>
           ) : (
             <ul className="divide-y divide-slate-100">
-              {recent.map((t) => {
-                const Icon = (t.icon && ICONS[t.icon]) || catIcon(t.category);
-                const isToday = t.dateKey === todayKey;
+              {recent.map((x) => {
+                const cat = catOf(x.category);
+                const Icon = (x.icon && ICONS[x.icon]) || cat.icon;
+                const isToday = x.dateKey === todayKey;
                 return (
-                  <li key={t.id} className="flex items-center gap-3 py-3">
+                  <li key={x.id} className="flex items-center gap-3 py-3">
                     <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
                       <Icon size={18} />
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-slate-800">
-                        {t.note || t.category}
+                        {x.note ? noteLabel(x.note, t) : t(`cat.${cat.id}`)}
                       </p>
                       <p className="text-xs text-slate-400">
-                        {isToday ? "วันนี้" : fromKey(t.dateKey).toLocaleDateString("th-TH", { day: "numeric", month: "short" })}{" "}
-                        · {new Date(t.ts).toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" })} · {t.category}
+                        {isToday
+                          ? t("recent.today")
+                          : fromKey(x.dateKey).toLocaleDateString(LOCALE, {
+                              day: "numeric",
+                              month: "short",
+                            })}{" "}
+                        ·{" "}
+                        {new Date(x.ts).toLocaleTimeString(LOCALE, {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}{" "}
+                        · {t(`cat.${cat.id}`)}
                       </p>
                     </div>
-                    <span className="font-bold text-slate-800">−{fmt(t.amount)}</span>
+                    <span className="font-bold text-slate-800">−{fmt(x.amount)}</span>
                     <button
-                      onClick={() => openEdit(t)}
+                      onClick={() => openEdit(x)}
                       className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 active:bg-slate-100"
-                      aria-label="แก้ไข"
+                      aria-label={t("common.edit")}
                     >
                       <Pencil size={16} />
                     </button>
                     <button
-                      onClick={() => removeTx(t.id)}
+                      onClick={() => removeTx(x.id)}
                       className="flex h-10 w-10 items-center justify-center rounded-xl text-rose-400 active:bg-rose-50"
-                      aria-label="ลบ"
+                      aria-label={t("common.delete")}
                     >
                       <Trash2 size={16} />
                     </button>
@@ -1523,7 +2097,7 @@ function Dashboard({
           onClick={resetAll}
           className="mx-auto mt-6 flex items-center gap-1 text-xs text-slate-400 active:text-slate-600"
         >
-          <RotateCcw size={12} /> เริ่มรอบใหม่
+          <RotateCcw size={12} /> {t("reset.btn")}
         </button>
       </div>
 
@@ -1546,8 +2120,12 @@ function Dashboard({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-slate-800">แก้ไขรายการ</h3>
-              <button onClick={() => setEditing(null)} className="p-2 text-slate-400" aria-label="ปิด">
+              <h3 className="text-lg font-bold text-slate-800">{t("edit.title")}</h3>
+              <button
+                onClick={() => setEditing(null)}
+                className="p-2 text-slate-400"
+                aria-label={t("common.close")}
+              >
                 <X size={20} />
               </button>
             </div>
@@ -1561,27 +2139,27 @@ function Dashboard({
             <div className="mb-3 flex flex-wrap gap-2">
               {CATEGORIES.map((c) => (
                 <button
-                  key={c.name}
-                  onClick={() => setECat(c.name)}
+                  key={c.id}
+                  onClick={() => setECat(c.id)}
                   className={`rounded-full px-3 py-2 text-sm ${
-                    eCat === c.name ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-600"
+                    eCat === c.id ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-600"
                   }`}
                 >
-                  {c.name}
+                  {t(`cat.${c.id}`)}
                 </button>
               ))}
             </div>
             <input
               value={eNote}
               onChange={(e) => setENote(e.target.value)}
-              placeholder="โน้ต"
+              placeholder={t("edit.notePh")}
               className="mb-4 w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-emerald-500"
             />
             <button
               onClick={saveEdit}
               className="flex w-full items-center justify-center gap-2 rounded-2xl bg-emerald-500 py-4 font-bold text-white active:bg-emerald-600"
             >
-              <Check size={18} /> บันทึกการแก้ไข
+              <Check size={18} /> {t("edit.save")}
             </button>
           </div>
         </div>
