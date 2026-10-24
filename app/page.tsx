@@ -18,6 +18,109 @@ import {
   AlertTriangle,
   TrendingUp,
   RotateCcw,
+  // อาหาร
+  UtensilsCrossed,
+  Soup,
+  Pizza,
+  Sandwich,
+  Salad,
+  Egg,
+  Beef,
+  Fish,
+  Drumstick,
+  Cookie,
+  Croissant,
+  Cake,
+  Apple,
+  Banana,
+  Cherry,
+  Popcorn,
+  Candy,
+  Wheat,
+  // เครื่องดื่ม
+  CupSoda,
+  Milk,
+  Wine,
+  Beer,
+  GlassWater,
+  Martini,
+  Citrus,
+  Droplet,
+  Leaf,
+  // เดินทาง
+  BusFront,
+  Car,
+  CarTaxiFront,
+  Bike,
+  Train,
+  TrainFront,
+  Plane,
+  Ship,
+  Fuel,
+  Footprints,
+  TramFront,
+  Truck,
+  MapPin,
+  // ของใช้/บ้าน
+  ShoppingCart,
+  ShoppingBag,
+  Store,
+  Package,
+  Shirt,
+  Gift,
+  Home,
+  Lamp,
+  Bed,
+  Bath,
+  Sofa,
+  Wrench,
+  Hammer,
+  Key,
+  Brush,
+  SprayCan,
+  Droplets,
+  // บิล/การเงิน
+  CreditCard,
+  Banknote,
+  Coins,
+  PiggyBank,
+  Receipt,
+  Zap,
+  Wifi,
+  Smartphone,
+  Phone,
+  Tv,
+  Lightbulb,
+  Plug,
+  Landmark,
+  // สุขภาพ/ชีวิต
+  Pill,
+  Stethoscope,
+  HeartPulse,
+  Dumbbell,
+  Baby,
+  PawPrint,
+  Heart,
+  Syringe,
+  Smile,
+  Scissors,
+  // บันเทิง/งาน
+  Gamepad2,
+  Film,
+  Music,
+  Headphones,
+  Book,
+  BookOpen,
+  GraduationCap,
+  Briefcase,
+  Laptop,
+  Camera,
+  Ticket,
+  PartyPopper,
+  Palette,
+  Umbrella,
+  Gem,
+  Star,
 } from "lucide-react";
 
 /* ---------- Types ---------- */
@@ -29,6 +132,14 @@ type Tx = {
   note: string;
   dateKey: string;
   ts: number;
+  icon?: string;
+};
+type QuickItem = {
+  id: string;
+  label: string;
+  amount: number;
+  category: string;
+  icon: string;
 };
 type Data = {
   setupDone: boolean;
@@ -36,6 +147,7 @@ type Data = {
   fixed: Fixed[];
   endDate: string; // yyyy-mm-dd (วันสุดท้ายของรอบ)
   txs: Tx[];
+  quick: QuickItem[];
 };
 
 /* ---------- Constants ---------- */
@@ -50,12 +162,99 @@ const CATEGORIES: { name: string; icon: React.ElementType }[] = [
   { name: "อื่นๆ", icon: Wallet },
 ];
 
-const QUICK = [
-  { label: "ค่าข้าว", amount: 50, category: "อาหาร" },
-  { label: "กาแฟ", amount: 40, category: "เครื่องดื่ม" },
-  { label: "เดินทาง", amount: 30, category: "เดินทาง" },
-  { label: "ข้าว+น้ำ", amount: 70, category: "อาหาร" },
+const DEFAULT_QUICK: QuickItem[] = [
+  { id: "q1", label: "ค่าข้าว", amount: 50, category: "อาหาร", icon: "Utensils" },
+  { id: "q2", label: "กาแฟ", amount: 40, category: "เครื่องดื่ม", icon: "Coffee" },
+  { id: "q3", label: "เดินทาง", amount: 30, category: "เดินทาง", icon: "Bus" },
+  { id: "q4", label: "ข้าว+น้ำ", amount: 70, category: "อาหาร", icon: "Utensils" },
 ];
+
+// ไอคอนแบ่งตามหมวด + ชื่อแนะนำ [ชื่อ, ไอคอน]
+const ICON_GROUPS: {
+  name: string;
+  icons: Record<string, React.ElementType>;
+  presets: [string, string][];
+}[] = [
+  {
+    name: "อาหาร",
+    icons: {
+      Utensils, UtensilsCrossed, Soup, Pizza, Sandwich, Salad, Egg, Beef, Fish,
+      Drumstick, Cookie, Croissant, Cake, Apple, Banana, Cherry, Popcorn, Candy, Wheat,
+    },
+    presets: [
+      ["ข้าวมันไก่", "Drumstick"], ["ก๋วยเตี๋ยว", "Soup"], ["ข้าวไข่เจียว", "Egg"],
+      ["ส้มตำ", "Salad"], ["ข้าวหมูทอด", "Beef"], ["ข้าวปลา", "Fish"],
+      ["แซนด์วิช", "Sandwich"], ["ขนม", "Cookie"], ["ผลไม้", "Apple"], ["ขนมปัง", "Croissant"],
+    ],
+  },
+  {
+    name: "เครื่องดื่ม",
+    icons: { Coffee, CupSoda, Milk, Wine, Beer, GlassWater, Martini, Citrus, Droplet, Leaf },
+    presets: [
+      ["กาแฟ", "Coffee"], ["ชาเย็น", "CupSoda"], ["น้ำเปล่า", "GlassWater"],
+      ["นม", "Milk"], ["น้ำผลไม้", "Citrus"], ["ชาเขียว", "Leaf"], ["เบียร์", "Beer"],
+    ],
+  },
+  {
+    name: "เดินทาง",
+    icons: {
+      Bus, BusFront, Car, CarTaxiFront, Bike, Train, TrainFront, Plane, Ship, Fuel,
+      Footprints, TramFront, Truck, MapPin,
+    },
+    presets: [
+      ["รถเมล์", "Bus"], ["BTS/MRT", "TrainFront"], ["แท็กซี่", "CarTaxiFront"],
+      ["วินมอไซค์", "Bike"], ["น้ำมัน", "Fuel"], ["ทางด่วน", "Car"], ["เรือ", "Ship"],
+    ],
+  },
+  {
+    name: "ของใช้/บ้าน",
+    icons: {
+      ShoppingBasket, ShoppingCart, ShoppingBag, Store, Package, Shirt, Gift, Home,
+      Lamp, Bed, Bath, Sofa, Wrench, Hammer, Key, Brush, SprayCan, Droplets,
+    },
+    presets: [
+      ["ของใช้", "ShoppingBasket"], ["ซื้อของ", "ShoppingCart"], ["เสื้อผ้า", "Shirt"],
+      ["ของขวัญ", "Gift"], ["ของใช้ทำความสะอาด", "SprayCan"], ["ซ่อมแซม", "Wrench"],
+    ],
+  },
+  {
+    name: "บิล/การเงิน",
+    icons: {
+      Wallet, CreditCard, Banknote, Coins, PiggyBank, Receipt, Zap, Wifi, Smartphone,
+      Phone, Tv, Lightbulb, Plug, Landmark,
+    },
+    presets: [
+      ["ค่าไฟ", "Zap"], ["ค่าเน็ต", "Wifi"], ["ค่าโทรศัพท์", "Smartphone"],
+      ["ค่าน้ำ", "Droplet"], ["ผ่อนบัตร", "CreditCard"], ["ออมเงิน", "PiggyBank"],
+    ],
+  },
+  {
+    name: "สุขภาพ/ชีวิต",
+    icons: {
+      Pill, Stethoscope, HeartPulse, Dumbbell, Baby, PawPrint, Heart, Syringe, Smile, Scissors,
+    },
+    presets: [
+      ["ยา", "Pill"], ["หาหมอ", "Stethoscope"], ["ฟิตเนส", "Dumbbell"],
+      ["ของลูก", "Baby"], ["สัตว์เลี้ยง", "PawPrint"], ["ตัดผม", "Scissors"],
+    ],
+  },
+  {
+    name: "บันเทิง/งาน",
+    icons: {
+      Gamepad2, Film, Music, Headphones, Book, BookOpen, GraduationCap, Briefcase,
+      Laptop, Camera, Ticket, PartyPopper, Palette, Umbrella, Gem, Star,
+    },
+    presets: [
+      ["เกม", "Gamepad2"], ["ดูหนัง", "Film"], ["เพลง", "Music"],
+      ["หนังสือ", "Book"], ["คอร์สเรียน", "GraduationCap"], ["ค่างาน", "Briefcase"],
+    ],
+  },
+];
+
+const ICONS: Record<string, React.ElementType> = Object.assign(
+  {},
+  ...ICON_GROUPS.map((g) => g.icons)
+);
 
 const DEFAULT_FIXED: Fixed[] = [
   { id: "f1", name: "ค่าห้อง", amount: 0 },
@@ -92,6 +291,7 @@ const defaultData = (): Data => ({
   fixed: DEFAULT_FIXED,
   endDate: monthEndKey(new Date()),
   txs: [],
+  quick: DEFAULT_QUICK,
 });
 
 /* ---------- Page ---------- */
@@ -337,6 +537,160 @@ function Setup({
   );
 }
 
+/* ---------- Quick Button Editor ---------- */
+function QuickEditor({
+  item,
+  isNew,
+  onSave,
+  onDelete,
+  onClose,
+}: {
+  item: QuickItem;
+  isNew: boolean;
+  onSave: (q: QuickItem) => void;
+  onDelete: (id: string) => void;
+  onClose: () => void;
+}) {
+  const [label, setLabel] = useState(item.label);
+  const [amountStr, setAmountStr] = useState(item.amount ? String(item.amount) : "");
+  const [category, setCategory] = useState(item.category);
+  const [icon, setIcon] = useState(item.icon);
+  const [g, setG] = useState(() => {
+    const i = ICON_GROUPS.findIndex((x) => item.icon in x.icons);
+    return i >= 0 ? i : 0;
+  });
+
+  const group = ICON_GROUPS[g];
+  const Preview = ICONS[icon] ?? Wallet;
+  const amountNum = Number(amountStr);
+  const canSave = label.trim().length > 0 && amountNum > 0;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end bg-black/40" onClick={onClose}>
+      <div
+        className="mx-auto max-h-[92vh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-white p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-lg font-bold text-slate-800">
+            {isNew ? "เพิ่มปุ่มบันทึกด่วน" : "แก้ไขปุ่มบันทึกด่วน"}
+          </h3>
+          <button onClick={onClose} className="p-2 text-slate-400" aria-label="ปิด">
+            <X size={20} />
+          </button>
+        </div>
+
+        {/* Preview */}
+        <div className="mb-4 flex h-16 items-center justify-between rounded-2xl bg-slate-100 px-4">
+          <span className="flex min-w-0 items-center gap-2 text-slate-700">
+            <Preview size={20} className="shrink-0" />
+            <span className="truncate font-medium">{label || "ชื่อรายการ"}</span>
+          </span>
+          <span className="ml-2 font-bold text-slate-800">{amountNum > 0 ? fmt(amountNum) : "0"}</span>
+        </div>
+
+        <div className="mb-3 flex gap-2">
+          <input
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder="ชื่อรายการ"
+            className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-emerald-500"
+          />
+          <input
+            type="number"
+            inputMode="decimal"
+            value={amountStr}
+            onChange={(e) => setAmountStr(e.target.value)}
+            placeholder="บาท"
+            className="w-24 rounded-xl border border-slate-200 px-3 py-3 text-right text-lg font-bold outline-none focus:border-emerald-500"
+          />
+        </div>
+
+        <p className="mb-1 text-xs font-medium text-slate-500">หมวดหมู่รายจ่าย</p>
+        <div className="mb-4 flex flex-wrap gap-2">
+          {CATEGORIES.map((c) => (
+            <button
+              key={c.name}
+              onClick={() => setCategory(c.name)}
+              className={`rounded-full px-3 py-2 text-sm ${
+                category === c.name ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-600"
+              }`}
+            >
+              {c.name}
+            </button>
+          ))}
+        </div>
+
+        <p className="mb-1 text-xs font-medium text-slate-500">เลือกโลโก้ (แยกตามหมวด)</p>
+        <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
+          {ICON_GROUPS.map((x, i) => (
+            <button
+              key={x.name}
+              onClick={() => setG(i)}
+              className={`shrink-0 whitespace-nowrap rounded-full px-3 py-2 text-sm ${
+                g === i ? "bg-slate-800 text-white" : "bg-slate-100 text-slate-600"
+              }`}
+            >
+              {x.name}
+            </button>
+          ))}
+        </div>
+
+        <div className="mb-3 flex flex-wrap gap-2">
+          {group.presets.map(([name, key]) => (
+            <button
+              key={name}
+              onClick={() => {
+                setLabel(name);
+                setIcon(key);
+              }}
+              className="rounded-full border border-slate-200 px-3 py-1.5 text-xs text-slate-600 active:bg-emerald-50"
+            >
+              {name}
+            </button>
+          ))}
+        </div>
+
+        <div className="mb-5 grid grid-cols-6 gap-2">
+          {Object.entries(group.icons).map(([key, Ic]) => (
+            <button
+              key={key}
+              onClick={() => setIcon(key)}
+              aria-label={key}
+              className={`flex h-12 items-center justify-center rounded-xl ${
+                icon === key ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-600"
+              }`}
+            >
+              <Ic size={20} />
+            </button>
+          ))}
+        </div>
+
+        <div className="flex gap-3">
+          {!isNew && (
+            <button
+              onClick={() => onDelete(item.id)}
+              className="flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-50 text-rose-500 active:bg-rose-100"
+              aria-label="ลบปุ่ม"
+            >
+              <Trash2 size={20} />
+            </button>
+          )}
+          <button
+            disabled={!canSave}
+            onClick={() =>
+              onSave({ id: item.id, label: label.trim(), amount: amountNum, category, icon })
+            }
+            className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-500 py-4 font-bold text-white active:bg-emerald-600 disabled:bg-slate-200 disabled:text-slate-400"
+          >
+            <Check size={18} /> บันทึก
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ---------- Dashboard ---------- */
 function Dashboard({
   data,
@@ -398,7 +752,7 @@ function Dashboard({
   const showSurvival = zone === "red" || calc.daysLeft <= 5;
 
   // Quick log
-  const addTx = (amount: number, category: string, note = "") => {
+  const addTx = (amount: number, category: string, note = "", icon?: string) => {
     if (!(amount > 0)) return;
     const tx: Tx = {
       id: uid(),
@@ -407,6 +761,7 @@ function Dashboard({
       note,
       dateKey: todayKey,
       ts: Date.now(),
+      icon,
     };
     setData((d) => ({ ...d, txs: [tx, ...d.txs] }));
   };
@@ -421,6 +776,25 @@ function Dashboard({
     addTx(n, category, note.trim());
     setAmountStr("");
     setNote("");
+  };
+
+  // Quick button customization
+  const [quickEdit, setQuickEdit] = useState(false);
+  const [qEditor, setQEditor] = useState<{ item: QuickItem; isNew: boolean } | null>(null);
+
+  const saveQuick = (q: QuickItem) => {
+    setData((d) => {
+      const exists = d.quick.some((x) => x.id === q.id);
+      return {
+        ...d,
+        quick: exists ? d.quick.map((x) => (x.id === q.id ? q : x)) : [...d.quick, q],
+      };
+    });
+    setQEditor(null);
+  };
+  const deleteQuick = (id: string) => {
+    setData((d) => ({ ...d, quick: d.quick.filter((x) => x.id !== id) }));
+    setQEditor(null);
   };
 
   // Edit
@@ -451,7 +825,13 @@ function Dashboard({
 
   const resetAll = () => {
     if (!confirm("เริ่มรอบใหม่? ประวัติรายจ่ายทั้งหมดจะถูกลบ")) return;
-    setData({ ...defaultData(), setupDone: false, budget: data.budget, fixed: data.fixed });
+    setData({
+      ...defaultData(),
+      setupDone: false,
+      budget: data.budget,
+      fixed: data.fixed,
+      quick: data.quick,
+    });
   };
 
   const recent = data.txs.slice(0, 20);
@@ -552,24 +932,58 @@ function Dashboard({
 
         {/* Quick log */}
         <section className="mb-4 rounded-2xl bg-white p-4 shadow-sm">
-          <h2 className="mb-3 text-sm font-medium text-slate-600">บันทึกด่วน (แตะครั้งเดียว)</h2>
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-medium text-slate-600">
+              {quickEdit ? "แตะปุ่มเพื่อแก้ไข" : "บันทึกด่วน (แตะครั้งเดียว)"}
+            </h2>
+            <button
+              onClick={() => setQuickEdit((v) => !v)}
+              className={`flex items-center gap-1 rounded-full px-3 py-2 text-sm font-medium ${
+                quickEdit ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-600"
+              }`}
+            >
+              {quickEdit ? <Check size={14} /> : <Pencil size={14} />}
+              {quickEdit ? "เสร็จ" : "ปรับแต่ง"}
+            </button>
+          </div>
           <div className="grid grid-cols-2 gap-3">
-            {QUICK.map((q) => {
-              const Icon = catIcon(q.category);
+            {data.quick.map((q) => {
+              const Icon = ICONS[q.icon] ?? Wallet;
               return (
                 <button
-                  key={q.label}
-                  onClick={() => addTx(q.amount, q.category, q.label)}
-                  className="flex h-16 items-center justify-between rounded-2xl bg-slate-100 px-4 text-left active:scale-95 active:bg-emerald-100"
+                  key={q.id}
+                  onClick={() =>
+                    quickEdit
+                      ? setQEditor({ item: q, isNew: false })
+                      : addTx(q.amount, q.category, q.label, q.icon)
+                  }
+                  className={`flex h-16 items-center justify-between rounded-2xl px-4 text-left active:scale-95 ${
+                    quickEdit
+                      ? "border-2 border-dashed border-emerald-300 bg-emerald-50"
+                      : "bg-slate-100 active:bg-emerald-100"
+                  }`}
                 >
-                  <span className="flex items-center gap-2 text-slate-700">
-                    <Icon size={20} />
-                    <span className="font-medium">{q.label}</span>
+                  <span className="flex min-w-0 items-center gap-2 text-slate-700">
+                    <Icon size={20} className="shrink-0" />
+                    <span className="truncate font-medium">{q.label}</span>
                   </span>
-                  <span className="font-bold text-slate-800">{q.amount}</span>
+                  <span className="ml-2 font-bold text-slate-800">{fmt(q.amount)}</span>
                 </button>
               );
             })}
+            {quickEdit && (
+              <button
+                onClick={() =>
+                  setQEditor({
+                    item: { id: uid(), label: "", amount: 0, category: CATEGORIES[0].name, icon: "Utensils" },
+                    isNew: true,
+                  })
+                }
+                className="flex h-16 items-center justify-center gap-1 rounded-2xl border-2 border-dashed border-slate-300 text-slate-500 active:bg-slate-50"
+              >
+                <Plus size={18} /> เพิ่มปุ่ม
+              </button>
+            )}
           </div>
 
           <div className="mt-4 border-t border-slate-100 pt-4">
@@ -626,7 +1040,7 @@ function Dashboard({
           ) : (
             <ul className="divide-y divide-slate-100">
               {recent.map((t) => {
-                const Icon = catIcon(t.category);
+                const Icon = (t.icon && ICONS[t.icon]) || catIcon(t.category);
                 const isToday = t.dateKey === todayKey;
                 return (
                   <li key={t.id} className="flex items-center gap-3 py-3">
@@ -671,6 +1085,17 @@ function Dashboard({
           <RotateCcw size={12} /> เริ่มรอบใหม่
         </button>
       </div>
+
+      {qEditor && (
+        <QuickEditor
+          key={qEditor.item.id}
+          item={qEditor.item}
+          isNew={qEditor.isNew}
+          onSave={saveQuick}
+          onDelete={deleteQuick}
+          onClose={() => setQEditor(null)}
+        />
+      )}
 
       {/* Edit sheet */}
       {editing && (
