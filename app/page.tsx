@@ -1796,9 +1796,9 @@ function parseSlip(raw: string, now: Date) {
       .slice(0, 40);
   }
 
-  const income = /รับเงิน|เงินเข้า|เงินโอนเข้า|received/i.test(text);
-
-  return { amount, dateKey, time, ref, note, income };
+  // สลิปที่สแกนถือเป็น "รายจ่าย" เสมอ (ไม่เดาเองว่าเป็นรายรับ เพราะคำว่า "ผู้รับ/รับเงิน" มีอยู่ในสลิปโอนออกด้วย)
+  // ถ้าเป็นเงินเข้าจริง ผู้ใช้กดสลับเป็น "รายรับ" เองในหน้าตรวจสอบ
+  return { amount, dateKey, time, ref, note };
 }
 
 function loadImage(file: File): Promise<HTMLImageElement> {
@@ -1895,7 +1895,7 @@ function SlipScanner({
             note: p.note || t("scan.slipNote"),
             dateKey: p.dateKey,
             time: p.time,
-            income: p.income,
+            income: false,
             ref: p.ref,
             dup: false,
             thumb,
