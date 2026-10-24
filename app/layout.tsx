@@ -41,11 +41,18 @@ const mitr = Mitr({
 export const metadata: Metadata = {
   title: "Survival Budget",
   description: "บริหารเงินให้อยู่รอดถึงสิ้นเดือน",
+  manifest: "/manifest.json", // เชื่อมโยงไฟล์ PWA Manifest
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Survival Budget",
+  },
 };
 
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
+  themeColor: "#000000", // สีธีมแถบด้านบนของมือถือเวลาเปิดแอป
 };
 
 export default function RootLayout({
