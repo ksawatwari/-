@@ -6,6 +6,11 @@ import { parseScb } from "@/lib/scb";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// เพิ่มฟังก์ชัน GET เพื่อรองรับการเช็คสถานะระบบ
+export async function GET(req: Request) {
+  return NextResponse.json({ ok: true, message: "Inbox API is ready" });
+}
+
 // มือถือ (MacroDroid ฯลฯ) ส่งข้อความแจ้งเตือนมาที่นี่
 export async function POST(req: Request) {
   if (!authorized(req)) {
@@ -49,5 +54,6 @@ export async function POST(req: Request) {
     }
     throw e;
   }
+
   return NextResponse.json({ ok: true, parsed: true });
 }
