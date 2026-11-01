@@ -2,9 +2,7 @@
 
 import { useMemo, useState } from "react";
 import {
-  Utensils,
   Wallet,
-  Trash2,
   Pencil,
   Settings,
   Plus,
@@ -15,13 +13,17 @@ import {
   TrendingUp,
   RotateCcw,
 } from "lucide-react";
-import { Tx, QuickItem, Profile, Data } from "@/lib/types";
+import { Tx, QuickItem, Data, CustomCat } from "@/lib/types";
 import { useT, getLocale } from "@/lib/i18n";
-import { CATEGORIES, catOf, quickLabel, noteLabel, ICONS } from "@/lib/constants";
+import { quickLabel, noteLabel, ICONS } from "@/lib/constants";
+import { rawCats, toViews, catFind } from "@/lib/categories";
 import { toKey, fromKey, diffDays, fmt, uid, defaultData } from "@/lib/utils";
 import { AvatarView } from "@/components/profile";
 import { QuickEditor } from "@/components/quick-editor";
 import { SlipScanner } from "@/components/slip-scanner";
+import { CategoryBudgets } from "@/components/category-budgets";
+import { CategoryManager } from "@/components/category-manager";
+import { TxList } from "@/components/tx-list";
 
 /* ================================================================
    Dashboard
@@ -41,6 +43,8 @@ export function Dashboard({
 }) {
   const t = useT();
   const todayKey = toKey(now);
+  const cats = toViews(rawCats(data), t);
+  const [catMgr, setCatMgr] = useState(false);
 
   const calc = useMemo(() => {
     const fixedTotal = data.fixed.reduce((s, f) => s + f.amount, 0);
@@ -106,7 +110,9 @@ export function Dashboard({
   };
 
   const [amountStr, setAmountStr] = useState("");
-  const [category, setCategory] = useState("food");
+  const [categoryPick, setCategory] = useState("food");
+  // ถ้าหมวดที่เลือกไว้ถูกลบไปแล้ว ให้ใช้หมวดแรกแทน
+  const category = cats.some((c) => c.id === categoryPick) ? categoryPick : cats[0].id;
   const [note, setNote] = useState("");
 
   const submitCustom = () => {
@@ -145,7 +151,7 @@ export function Dashboard({
   const openEdit = (x: Tx) => {
     setEditing(x);
     setEAmount(String(x.amount));
-    setECat(catOf(x.category).id);
+    setECat(catFind(cats, x.category).id);
     setENote(noteLabel(x.note, t));
   };
   const saveEdit = () => {
@@ -184,10 +190,22 @@ export function Dashboard({
       lock: data.lock,
       theme: data.theme,
       pattern: data.pattern,
+      categories: data.categories,
+      catBudgets: data.catBudgets,
     });
   };
 
-  const recent = data.txs.slice(0, 20);
+  const bulkMove = (ids: string[], catId: string) =>
+    setData((d) => ({
+      ...d,
+      txs: d.txs.map((x) => (ids.includes(x.id) ? { ...x, category: catId } : x)),
+    }));
+  const bulkDelete = (ids: string[]) =>
+    setData((d) => ({ ...d, txs: d.txs.filter((x) => !ids.includes(x.id)) }));
+  const saveCats = (list: CustomCat[], budgets: Record<string, number>) => {
+    setData((d) => ({ ...d, categories: list, catBudgets: budgets }));
+    setCatMgr(false);
+  };
 
   const perMeal = Math.max(0, calc.allowanceToday) / 3;
   const perMealLeft = Math.max(0, calc.remainingToday) / 3;
@@ -319,6 +337,14 @@ export function Dashboard({
           </section>
         )}
 
+        {/* Category budgets */}
+        <CategoryBudgets
+          cats={cats}
+          budgets={data.catBudgets ?? {}}
+          txs={data.txs}
+          onManage={() => setCatMgr(true)}
+        />
+
         {/* Slip scanner */}
         <SlipScanner
           existing={data.txs}
@@ -389,7 +415,7 @@ export function Dashboard({
 
           <div className="mt-4 border-t border-slate-100 pt-4">
             <div className="mb-3 flex flex-wrap gap-2">
-              {CATEGORIES.map((c) => {
+              {cats.map((c) => {
                 const Icon = c.icon;
                 const active = category === c.id;
                 return (
@@ -400,7 +426,7 @@ export function Dashboard({
                       active ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-600"
                     }`}
                   >
-                    <Icon size={14} /> {t(`cat.${c.id}`)}
+                    <Icon size={14} /> {c.name}
                   </button>
                 );
               })}
@@ -423,6 +449,7 @@ export function Dashboard({
                 className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-emerald-500"
               />
             </div>
+            <p className="mt-2 text-xs text-slate-400">{t("tag.hint")}</p>
             <button
               onClick={submitCustom}
               disabled={!(Number(amountStr) > 0)}
@@ -433,67 +460,16 @@ export function Dashboard({
           </div>
         </section>
 
-        {/* Recent */}
-        <section className="rounded-2xl bg-white p-4 shadow-sm">
-          <h2 className="mb-2 text-sm font-medium text-slate-600">{t("recent.title")}</h2>
-          {recent.length === 0 ? (
-            <p className="py-6 text-center text-sm text-slate-400">{t("recent.empty")}</p>
-          ) : (
-            <ul className="divide-y divide-slate-100">
-              {recent.map((x) => {
-                const cat = catOf(x.category);
-                const Icon = (x.icon && ICONS[x.icon]) || cat.icon;
-                const isToday = x.dateKey === todayKey;
-                return (
-                  <li key={x.id} className="flex items-center gap-3 py-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
-                      <Icon size={18} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-slate-800">
-                        {x.note ? noteLabel(x.note, t) : t(`cat.${cat.id}`)}
-                      </p>
-                      <p className="text-xs text-slate-400">
-                        {isToday
-                          ? t("recent.today")
-                          : fromKey(x.dateKey).toLocaleDateString(getLocale(), {
-                              day: "numeric",
-                              month: "short",
-                            })}{" "}
-                        ·{" "}
-                        {new Date(x.ts).toLocaleTimeString(getLocale(), {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}{" "}
-                        · {t(`cat.${cat.id}`)}
-                      </p>
-                    </div>
-                    <span
-                      className={`font-bold ${x.income ? "text-emerald-600" : "text-slate-800"}`}
-                    >
-                      {x.income ? "+" : "−"}
-                      {fmt(x.amount)}
-                    </span>
-                    <button
-                      onClick={() => openEdit(x)}
-                      className="flex h-10 w-10 items-center justify-center rounded-xl text-slate-400 active:bg-slate-100"
-                      aria-label={t("common.edit")}
-                    >
-                      <Pencil size={16} />
-                    </button>
-                    <button
-                      onClick={() => removeTx(x.id)}
-                      className="flex h-10 w-10 items-center justify-center rounded-xl text-rose-400 active:bg-rose-50"
-                      aria-label={t("common.delete")}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
+        {/* Recent + search */}
+        <TxList
+          txs={data.txs}
+          cats={cats}
+          todayKey={todayKey}
+          onEdit={openEdit}
+          onRemove={removeTx}
+          onBulkMove={bulkMove}
+          onBulkDelete={bulkDelete}
+        />
 
         <button
           onClick={resetAll}
@@ -508,9 +484,19 @@ export function Dashboard({
           key={qEditor.item.id}
           item={qEditor.item}
           isNew={qEditor.isNew}
+          cats={cats}
           onSave={saveQuick}
           onDelete={deleteQuick}
           onClose={() => setQEditor(null)}
+        />
+      )}
+
+      {catMgr && (
+        <CategoryManager
+          cats={cats}
+          budgets={data.catBudgets ?? {}}
+          onSave={saveCats}
+          onClose={() => setCatMgr(false)}
         />
       )}
 
@@ -539,7 +525,7 @@ export function Dashboard({
               className="mb-3 w-full rounded-xl border border-slate-200 px-4 py-3 text-2xl font-bold outline-none focus:border-emerald-500"
             />
             <div className="mb-3 flex flex-wrap gap-2">
-              {CATEGORIES.map((c) => (
+              {cats.map((c) => (
                 <button
                   key={c.id}
                   onClick={() => setECat(c.id)}
@@ -547,7 +533,7 @@ export function Dashboard({
                     eCat === c.id ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-600"
                   }`}
                 >
-                  {t(`cat.${c.id}`)}
+                  {c.name}
                 </button>
               ))}
             </div>
