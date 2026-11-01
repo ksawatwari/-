@@ -24,6 +24,8 @@ import { SlipScanner } from "@/components/slip-scanner";
 import { CategoryBudgets } from "@/components/category-budgets";
 import { CategoryManager } from "@/components/category-manager";
 import { TxList } from "@/components/tx-list";
+import { HealthCard } from "@/components/health/health-card";
+import { HealthTabId } from "@/components/health/health-screen";
 
 /* ================================================================
    Dashboard
@@ -34,12 +36,14 @@ export function Dashboard({
   now,
   onOpenSettings,
   onOpenProfile,
+  onOpenHealth,
 }: {
   data: Data;
   setData: React.Dispatch<React.SetStateAction<Data>>;
   now: Date;
   onOpenSettings: () => void;
   onOpenProfile: () => void;
+  onOpenHealth: (tab: HealthTabId) => void;
 }) {
   const t = useT();
   const todayKey = toKey(now);
@@ -192,6 +196,7 @@ export function Dashboard({
       pattern: data.pattern,
       categories: data.categories,
       catBudgets: data.catBudgets,
+      health: data.health,
     });
   };
 
@@ -344,6 +349,9 @@ export function Dashboard({
           txs={data.txs}
           onManage={() => setCatMgr(true)}
         />
+
+        {/* Health summary */}
+        <HealthCard data={data} todayKey={todayKey} onOpen={onOpenHealth} />
 
         {/* Slip scanner */}
         <SlipScanner
