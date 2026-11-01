@@ -1,11 +1,11 @@
-   "use client";
+"use client";
 
 import { useEffect, useRef, useState } from "react";
 import { Lang, Data } from "@/lib/types";
 import { LOCALES, LANGS, LangCtx, setLocale } from "@/lib/i18n";
 import { fontFamilyOf } from "@/lib/fonts";
 import { STORAGE_KEY } from "@/lib/constants";
-import { defaultData } from "@/lib/utils";
+import { defaultData, toKey } from "@/lib/utils";
 import { ProfileScreen } from "@/components/profile";
 import { applyTheme, ThemeBackdrop } from "@/components/theme";
 import { AUTOLOCK_MS, LockScreen } from "@/components/lock";
@@ -13,6 +13,7 @@ import { SettingsScreen } from "@/components/settings";
 import { Setup } from "@/components/setup";
 import { Dashboard } from "@/components/dashboard";
 import { SwRegister } from "@/components/sw-register";
+import { HealthScreen, HealthTabId } from "@/components/health/health-screen";
 
 /* ================================================================
    Page
@@ -24,6 +25,7 @@ export default function Page() {
   const [editingSetup, setEditingSetup] = useState(false);
   const [editingProfile, setEditingProfile] = useState(false);
   const [editingSettings, setEditingSettings] = useState(false);
+  const [healthTab, setHealthTab] = useState<HealthTabId | null>(null);
   const [unlocked, setUnlocked] = useState(false);
   const hiddenAt = useRef(0);
 
@@ -126,6 +128,16 @@ export default function Page() {
         }}
       />
     );
+  } else if (healthTab) {
+    content = (
+      <HealthScreen
+        data={data}
+        setData={setData}
+        todayKey={toKey(now)}
+        initialTab={healthTab}
+        onBack={() => setHealthTab(null)}
+      />
+    );
   } else if (editingSettings) {
     content = (
       <SettingsScreen
@@ -157,6 +169,7 @@ export default function Page() {
         now={now}
         onOpenSettings={() => setEditingSettings(true)}
         onOpenProfile={() => setEditingProfile(true)}
+        onOpenHealth={(tab) => setHealthTab(tab)}
       />
     );
   }
