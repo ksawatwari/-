@@ -87,4 +87,24 @@ export const EXTRA: Record<string, Row> = {
     "Supprimer {n} opérations ?",
     "{n} Buchungen löschen?",
   ],
+
+  // PWA / ออฟไลน์
+  "pwa.offline": [
+    "ออฟไลน์ — ใช้งานได้ปกติ ข้อมูลบันทึกในเครื่อง",
+    "Offline — everything still works, data is saved on this device",
+    "Hors ligne — tout fonctionne, données enregistrées sur l'appareil",
+    "Offline – alles funktioniert, Daten bleiben auf dem Gerät",
+  ],
+  "pwa.update": [
+    "มีเวอร์ชันใหม่ — แตะเพื่ออัปเดต",
+    "New version available — tap to update",
+    "Nouvelle version — touchez pour mettre à jour",
+    "Neue Version – zum Aktualisieren tippen",
+  ],
+  "pwa.ready": [
+    "พร้อมใช้งานออฟไลน์แล้ว ✓",
+    "Ready to use offline ✓",
+    "Utilisable hors ligne ✓",
+    "Offline nutzbar ✓",
+  ],
 };
