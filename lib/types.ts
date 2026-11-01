@@ -1,4 +1,4 @@
-
+   
 
 /* ================================================================
    Types
@@ -23,6 +23,8 @@ export type QuickItem = {
   category: string;
   icon: string;
 };
+// หมวดหมู่ที่ปรับแต่งได้ — name ว่าง = ใช้ชื่อแปลของหมวดเริ่มต้น / icon = key ใน ICONS
+export type CustomCat = { id: string; name?: string; icon: string };
 export type Avatar =
   | { kind: "default" }
   | { kind: "preset"; key: string }
@@ -48,4 +50,6 @@ export type Data = {
   lock: LockData | null; // รหัสผ่านเข้าแอป — null = ไม่ล็อก
   theme: string; // id สีธีม
   pattern: string; // id ลวดลายพื้นหลัง
+  categories?: CustomCat[]; // ไม่มี = หมวดเริ่มต้น
+  catBudgets?: Record<string, number>; // งบสูงสุดต่อหมวดต่อรอบ (id หมวด → บาท)
 };
