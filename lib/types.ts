@@ -1,8 +1,10 @@
-   
+
 
 /* ================================================================
    Types
 ================================================================ */
+import { HealthData } from "@/lib/health-types";
+
 export type Lang = "th" | "en" | "fr" | "de";
 export type Fixed = { id: string; name: string; amount: number };
 export type Tx = {
@@ -52,4 +54,5 @@ export type Data = {
   pattern: string; // id ลวดลายพื้นหลัง
   categories?: CustomCat[]; // ไม่มี = หมวดเริ่มต้น
   catBudgets?: Record<string, number>; // งบสูงสุดต่อหมวดต่อรอบ (id หมวด → บาท)
+  health?: HealthData; // โมดูลสุขภาพ (ไม่มี = ยังไม่เปิดใช้)
 };
