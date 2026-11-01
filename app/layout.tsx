@@ -42,6 +42,7 @@ export const metadata: Metadata = {
   title: "Survival Budget",
   description: "บริหารเงินให้อยู่รอดถึงสิ้นเดือน",
   manifest: "/manifest.json", // เชื่อมโยงไฟล์ PWA Manifest
+  icons: { icon: "/icon-192.png", apple: "/icon-192.png" }, // ไอคอนบนหน้าจอโฮม iOS
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
