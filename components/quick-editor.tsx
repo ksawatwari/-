@@ -9,7 +9,8 @@ import {
 } from "lucide-react";
 import { QuickItem } from "@/lib/types";
 import { LANG_IDX, useT, useLang } from "@/lib/i18n";
-import { CATEGORIES, catOf, quickLabel, ICON_GROUPS, ICONS } from "@/lib/constants";
+import { quickLabel, ICON_GROUPS, ICONS } from "@/lib/constants";
+import { CatView, catFind } from "@/lib/categories";
 import { fmt } from "@/lib/utils";
 
 /* ================================================================
@@ -18,12 +19,14 @@ import { fmt } from "@/lib/utils";
 export function QuickEditor({
   item,
   isNew,
+  cats,
   onSave,
   onDelete,
   onClose,
 }: {
   item: QuickItem;
   isNew: boolean;
+  cats: CatView[];
   onSave: (q: QuickItem) => void;
   onDelete: (id: string) => void;
   onClose: () => void;
@@ -33,7 +36,7 @@ export function QuickEditor({
   const initialLabel = quickLabel(item, t);
   const [label, setLabel] = useState(initialLabel);
   const [amountStr, setAmountStr] = useState(item.amount ? String(item.amount) : "");
-  const [category, setCategory] = useState(catOf(item.category).id);
+  const [category, setCategory] = useState(catFind(cats, item.category).id);
   const [icon, setIcon] = useState(item.icon);
   const [g, setG] = useState(() => {
     const i = ICON_GROUPS.findIndex((x) => item.icon in x.icons);
@@ -90,7 +93,7 @@ export function QuickEditor({
 
         <p className="mb-1 text-xs font-medium text-slate-500">{t("qe.category")}</p>
         <div className="mb-4 flex flex-wrap gap-2">
-          {CATEGORIES.map((c) => (
+          {cats.map((c) => (
             <button
               key={c.id}
               onClick={() => setCategory(c.id)}
@@ -98,7 +101,7 @@ export function QuickEditor({
                 category === c.id ? "bg-emerald-500 text-white" : "bg-slate-100 text-slate-600"
               }`}
             >
-              {t(`cat.${c.id}`)}
+              {c.name}
             </button>
           ))}
         </div>
