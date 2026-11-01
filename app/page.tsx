@@ -1,4 +1,4 @@
-"use client";
+   "use client";
 
 import { useEffect, useRef, useState } from "react";
 import { Lang, Data } from "@/lib/types";
@@ -12,6 +12,7 @@ import { AUTOLOCK_MS, LockScreen } from "@/components/lock";
 import { SettingsScreen } from "@/components/settings";
 import { Setup } from "@/components/setup";
 import { Dashboard } from "@/components/dashboard";
+import { SwRegister } from "@/components/sw-register";
 
 /* ================================================================
    Page
@@ -162,6 +163,7 @@ export default function Page() {
 
   return (
     <LangCtx.Provider value={lang}>
+      <SwRegister />
       {loaded && <ThemeBackdrop pattern={data.pattern} />}
       {content}
     </LangCtx.Provider>
