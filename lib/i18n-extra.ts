@@ -1,8 +1,11 @@
 // คำแปลของฟีเจอร์ใหม่ (th, en, fr, de) — รวมเข้า D ใน lib/i18n.tsx ด้วย Object.assign
 // ขั้นถัดไปเพิ่มคำใหม่ในไฟล์นี้ต่อได้เลย
+import { HEALTH } from "@/lib/i18n-health";
+
 type Row = [string, string, string, string];
 
 export const EXTRA: Record<string, Row> = {
+  ...HEALTH,
   // งบรายหมวด
   "cb.title": ["งบรายหมวด", "Category budgets", "Budgets par catégorie", "Budgets nach Kategorie"],
   "cb.manage": ["จัดการหมวด", "Manage", "Gérer", "Verwalten"],
