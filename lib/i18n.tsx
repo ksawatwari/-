@@ -8,6 +8,7 @@ import {
   Copy,
 } from "lucide-react";
 import { Lang, Fixed } from "@/lib/types";
+import { EXTRA } from "@/lib/i18n-extra";
 
 /* ================================================================
    i18n  (th, en, fr, de)
@@ -536,6 +537,9 @@ export const D: Record<string, Row> = {
   "grp.life": ["สุขภาพ/ชีวิต", "Health & life", "Santé & vie", "Gesundheit & Leben"],
   "grp.fun": ["บันเทิง/งาน", "Fun & work", "Loisirs & travail", "Freizeit & Arbeit"],
 };
+
+// คำแปลฟีเจอร์ใหม่แยกไฟล์ไว้ที่ lib/i18n-extra.ts
+Object.assign(D, EXTRA);
 
 export function tr(lang: Lang, key: string, vars?: Record<string, string | number>): string {
   const row = D[key];
